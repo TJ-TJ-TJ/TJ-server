@@ -120,7 +120,7 @@ const CaptchaConfig = {
   },
 };
     // 检查手机号|邮箱是否注册 
-function isExist(number) {
+async function isExist(number) {
   let uphone = number || ''
   let umail = number || ''
 
@@ -243,38 +243,40 @@ r.post('/login', async(req, res, next) => {
 // 手机号 - 验证码登录 - 发送短信
 r.get('/login1_send', async(req, res) => {
   let phone = req.query.phone
-  let checkPhone = /^1\d{10}$/.test(phone)
-  if (!checkPhone) {
-    return res.resParamsErr()
-  }
-
-  let verify = Math.random().toString().substr(2, 5)
-  let client = new smsClient(smsClientOptions)
-  smsParams.TemplateId = "1000137"
-  smsParams.PhoneNumberSet = [`+86${phone}`]
-  smsParams.TemplateParamSet = [verify, 2]
-  client.SendSms(smsParams, function(err, response) {
-    // 请求异常返回，打印异常信息
-    if (err) {
-      res.resDataErr('服务器遇到错误, 请重试')
-      return
-    }
-    // 请求正常返回，打印response对象
-    let resId = response.RequestId
-    phoneArray.push({id:resId, verify})
-
-    res.resOk({ id:resId, phone })
-    setTimeout(_ => {
-      // 闭包对象: {resId:}
-      const i = phoneArray.findIndex(v => v.id === resId)
-      if (i >= 0) {
-        phoneArray.splice(i, 1)
+  let exist = await isExist(phone)
+  
+  if (exist) {
+    // 存在了
+    res.resBadErr({code:403, msg:'已经注册了,请登录'})
+  } else {
+    // 可注册
+    let verify = Math.random().toString().substr(2, 5)
+    let client = new smsClient(smsClientOptions)
+    smsParams.TemplateId = "1000137"
+    smsParams.PhoneNumberSet = [`+86${phone}`]
+    smsParams.TemplateParamSet = [verify, 2]
+    client.SendSms(smsParams, function(err, response) {
+      // 请求异常返回，打印异常信息
+      if (err) {
+        res.resDataErr('服务器遇到错误, 请重试')
+        return
       }
-      client = null
-      verify = null
-    }, 2*60*1000)
-  })
+      // 请求正常返回，打印response对象
+      let resId = response.RequestId
+      phoneArray.push({id:resId, verify})
 
+      res.resOk({ id:resId, phone })
+      setTimeout(_ => {
+        // 闭包对象: {resId:}
+        const i = phoneArray.findIndex(v => v.id === resId)
+        if (i >= 0) {
+          phoneArray.splice(i, 1)
+        }
+        client = null
+        verify = null
+      }, 2*60*1000)
+    })
+  }
 })
 
 // 手机号 - 验证码登录
@@ -393,16 +395,17 @@ r.post('/login2', upload.single('face'), async(req, res) => {
 
 // 获取验证码
 // 响应请求唯一ID
-r.get('/verify', (req, res, next) => {
+r.get('/verify', async(req, res, next) => {
   let phone = req.query.phone
   let mail = req.query.mail
 
-  
-  if (/^1\d{10}$/.test(phone)) {
-    // 判断手机是否注册
-
-
-
+  let exist = await isExist(phone)
+  if (exist) {
+    // 存在
+    res.resBadErr({code:403, msg:'已经存在'})
+    return
+  } else {
+    // 可注册
     let client = new smsClient({
       credential: {
         secretId: 'AKID53rSpxqU0KRL2Un7MUTEzav2yqTr0uZ6',
@@ -458,6 +461,7 @@ r.get('/verify', (req, res, next) => {
         verify = null
       }, 2*60*1000)
     })
+
     return
   }
 
@@ -685,46 +689,13 @@ r.get('/quit', (req, res) => {
 
 // 手机号是否可注册 / 邮箱是否可注册
 r.get('/exist', async (req, res, next) => {
-  let uphone = req.query.uphone
-  let umail = req.query.umail 
-
-  let checkPhone = /^1\d{10}$/.test(uphone)
-  let checkMail = /^\w+@\w+[.][a-z]+$/.test(umail)
-  
-  
-  if (checkPhone) {
-    let where = { uphone }
-    let [err, resObj] = await utils.capture( userTable.findOne(where) )
-    if (err) {
-      return res.resDataErr()
-    }
-      // 数据库获取
-    if (resObj) {
-      res.resBadErr({code:403, msg:'当前手机号已注册'})
-    } else {
-      res.resOk('可以注册')
-    }
-    return
+  let exist =  await isExist(req.query.uphone)
+  if (exist) {
+    // 存在.不可注册
+    res.resBadErr()
+  } else {
+    res.resOk()
   }
-
-  if (checkMail) {
-    let where = { umail }
-    let [err, resObj] = await utils.capture( userTable.findOne(where) )
-    if (err) {
-      return res.resDataErr()
-    }
-      // 数据库获取
-    if (resObj) {
-      res.resBadErr({code:403, msg:'当前邮箱已注册'})
-    } else {
-      
-      res.resOk('可以注册')
-    }
-    return 
-  }
-  
-  // 都没有
-  res.resParamsErr()
 })
 
 // 图形验证 - 拦截恶意注册
