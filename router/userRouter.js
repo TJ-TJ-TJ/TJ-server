@@ -119,10 +119,49 @@ const CaptchaConfig = {
     },
   },
 };
+    // 检查手机号|邮箱是否注册 
+function isExist(number) {
+  let uphone = number || ''
+  let umail = number || ''
+
+  let checkPhone = /^1\d{10}$/.test(uphone)
+  let checkMail = /^\w+@\w+[.][a-z]+$/.test(umail)
+  
+  
+  if (checkPhone) {
+    let where = { uphone }
+    let [err, resObj] = await utils.capture( userTable.findOne(where) )
+    if (err) {
+      return true
+    }
+      // 数据库获取
+    if (resObj) {
+      // 已注册
+      return true
+    } else {
+      return false // 不存在,可注册
+    }
+  }
+
+  if (checkMail) {
+    let where = { umail }
+    let [err, resObj] = await utils.capture( userTable.findOne(where) )
+    if (err) {
+      return true //存在
+    }
+      // 数据库获取
+    if (resObj) {
+      // 已注册
+      return true
+    } else {
+      return false // 不存在,可注册
+    }
+  }
+}
 
 
 /**
- * 手机号 / 邮箱号登录 - 密码登录
+ * 账号密码登录
 */
 r.post('/login', async(req, res, next) => {
   let uname = req.body.uname || ''
@@ -234,7 +273,8 @@ r.get('/login1_send', async(req, res) => {
       client = null
       verify = null
     }, 2*60*1000)
-  })  
+  })
+
 })
 
 // 手机号 - 验证码登录
@@ -247,7 +287,7 @@ r.post('/login1', async(req, res) => {
   // 前端已经判断了. 注册过的账号才可以进来
   const i = phoneArray.findIndex(v => v.id === id && v.verify==verify)
   if (i === -1) {
-    return res.resParamsErr('时间超时')
+    return res.resParamsErr('时间超时或验证码有误')
     // 验证码有误
   }
 
@@ -359,14 +399,12 @@ r.get('/verify', (req, res, next) => {
 
   
   if (/^1\d{10}$/.test(phone)) {
-    
+    // 判断手机是否注册
+
+
+
     let client = new smsClient({
       credential: {
-      /* 必填：腾讯云账户密钥对secretId，secretKey。
-       * 这里采用的是从环境变量读取的方式，需要在环境变量中先设置这两个值。
-       * 你也可以直接在代码中写死密钥对，但是小心不要将代码复制、上传或者分享给他人，
-       * 以免泄露密钥对危及你的财产安全。
-       * CAM密匙查询: https://console.cloud.tencent.com/cam/capi */
         secretId: 'AKID53rSpxqU0KRL2Un7MUTEzav2yqTr0uZ6',
         secretKey: 'fCXeWWJrAF6h7f3EHCuPuFPPAfwxiFXe',
       },
@@ -461,18 +499,14 @@ r.get('/verify', (req, res, next) => {
 
 // 手机号注册
 r.post('/sigin', async(req, res) => {
-  // let uname = req.body.uname || ''  //删除用户名
-  let upwd = req.body.upwd || ''
+  // 手机号注册.   只需要 随机生成一个 用户名即可.  数据库只需要放入 uphone uname
   let uphone = req.body.uphone || ''
   let id = req.body.id || ''
   let newVerify = req.body.newVerify || ''
 
   // 参数拦截
-  let upwdTest = /(?!^\d+$)(?!^[a-z]+$)(?!^[A-Z]+$)^\w{6,20}$/.test(upwd)
   let uphoneTest = /^1\d{10}$/.test(uphone)
-
-  // 只要有一个 不符合要求
-  if (!upwdTest || !uphoneTest || !id || !newVerify) {
+  if ( !uphoneTest ) {
     return res.resParamsErr()
   }
 
@@ -481,10 +515,10 @@ r.post('/sigin', async(req, res) => {
   if (resIndex === -1) {
     return res.resParamsErr('验证码错误或超时')
   }
-  let uname = Math.random().toString(26).substr(2, 7)
 
   // 验证码正确. 且未超时. 可以开启注册
-  let insertData = { uname, uphone, upwd }
+  let uname = Math.random().toString(26).substr(2, 7)
+  let insertData = { uname, uphone }
   let [err, resObj] = await utils.capture( userTable.insertOne(insertData) )
 
   // 非法的操作.
