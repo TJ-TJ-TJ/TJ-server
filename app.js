@@ -6,9 +6,10 @@ const express         =   require('express')
 */
 const indexRouter     = require('./router/indexRouter')
 const detailRouter    = require('./router/detailRouter')
-const userRouter    = require('./router/userRouter')
+const userRouter      = require('./router/userRouter')
 const searchRouter    = require('./router/searchRouter')
 const orderRouter     = require('./router/orderRouter')
+const profileRouter   = require('./router/profileRouter')
 
 /**
  * 全局中间件引入 
@@ -35,8 +36,7 @@ app.use(bodyParser.json())
 // 封装 res响应体的 msg,code内容
 app.use(resParamsErr, resDataErr, resBadErr, resOk)
 // 检测登录状态 - 中间件
-// app.use(checkLogin)
-
+app.use(checkLogin)
 
 
 /**
@@ -47,6 +47,8 @@ app.use('/v1/details', detailRouter)
 app.use('/v1/user', userRouter)
 app.use('/v1/search', searchRouter)
 app.use('/v1/order', orderRouter)
+app.use('/v1/profile', profileRouter)
+
 app.use(notFound)
 
 

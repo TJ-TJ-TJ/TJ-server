@@ -39,69 +39,40 @@ try {
 }
 })
 
-// 点赞功能 - 需要登录
-r.post('/like', async(req, res) => {
-try {
-  // ---------------------------------------- 测试ＩＤ
-  let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
-  let { rid, imgList, title, params, score, score_count, con_title,price,new_price } =
-  req.body
-  if (!rid) {
-    return res.resParamsErr()
-  }
-
-  let upObj = {
-    $addToSet:{
-      collect: {
-        rid:ObjectId(rid),
-        imgList,
-        title,
-        params,
-        score,
-        score_count,
-        con_title,
-        price,
-        new_price
-      }
+// 是否可 预定?
+r.get('/is', async(req, res) => {
+  try {
+    let start = +req.query.start
+    let end   = +req.query.end
+    let rid = req.query.rid || '60c164a7074200005d003192'
+    if (!start || !end || !rid) {
+      return res.resParamsErr()
     }
-  }
-  let [err, resObj] = await utils.capture( userInfoTable.updateOne({uid}, upObj) )
-  if (err || resObj.modifiedCount!==1) {
-    return res.resParamsErr()
-  }
-  // 插入成功
-  res.resOk()
-} catch(err) {
-  console.log(err)
-  res.resParamsErr()
-}
-})
-
-// 取消点赞功能 - 需登录
-r.post('/unlike', async(req, res) => {
-try {
-  // ---------------------------------------- 测试ＩＤ
-  let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
-  let rid = req.body.rid
-  if (!rid) { return res.resParamsErr() }
-  rid = ObjectId(rid)
-
-  let where = { uid }
-  let deleObj = { 
-    $pull: {
-      "collect": { rid: rid }
+    rid = ObjectId(rid)
+  
+    const where = {
+      "orders.rid": rid,
+      $and: [
+        { "orders.start_time": { $lt:  end} },
+        { "orders.end_time": { $gt: start } }
+      ] 
+      
     }
+    const ops = { projection: {_id:1} }
+    const [err, resObj] = await utils.capture( userInfoTable.findOne(where, ops) )
+    if (resObj) {
+      // 有值. 说明不能预定
+      res.resBadErr('不能预定') 
+    } else {
+      // 
+      res.resOk('可以预定')
+    }
+  } catch(err) {
+    console.log(err)
+    res.resParamsErr()
   }
-  let [err, resObj] = await utils.capture( userInfoTable.updateOne(where, deleObj) )
-  if (err || resObj.modifiedCount!==1) { return res.resParamsErr() }
-
-  res.resOk()
-} catch(err) {
-  console.log(err)
-  res.resParamsErr()
-}
-})
-
+  })
+  
 
 
 

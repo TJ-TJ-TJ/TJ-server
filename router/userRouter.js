@@ -131,15 +131,15 @@ async function isExist(number) {
   if (checkPhone) {
     let where = { uphone }
     let [err, resObj] = await utils.capture( userTable.findOne(where) )
-    if (err) {
-      return true
+    if (err) {  // 
+      return true 
     }
       // 数据库获取
     if (resObj) {
       // 已注册
       return true
     } else {
-      return false // 不存在,可注册
+      return false // 不存在,需要注册
     }
   }
 
@@ -164,6 +164,7 @@ async function isExist(number) {
  * 账号密码登录
 */
 r.post('/login', async(req, res, next) => {
+try {
   let uname = req.body.uname || ''
   let upwd = req.body.upwd || ''
   let isRemember = req.body.isremember || true  // 是否记住登录状态
@@ -237,19 +238,20 @@ r.post('/login', async(req, res, next) => {
 
   // 手机号 - 邮箱号 均有误
   res.resParamsErr()
+} catch(err) {
+  res.resParamsErr('代码有吴')
+}
 })
 
 
 // 手机号 - 验证码登录 - 发送短信
 r.get('/login1_send', async(req, res) => {
+try {
   let phone = req.query.phone
   let exist = await isExist(phone)
   
   if (exist) {
-    // 存在了
-    res.resBadErr({code:403, msg:'已经注册了,请登录'})
-  } else {
-    // 可注册
+    // 存在了 发验证码
     let verify = Math.random().toString().substr(2, 5)
     let client = new smsClient(smsClientOptions)
     smsParams.TemplateId = "1000137"
@@ -261,6 +263,12 @@ r.get('/login1_send', async(req, res) => {
         res.resDataErr('服务器遇到错误, 请重试')
         return
       }
+      if (response.SendStatusSet[0].Code.toLocaleUpperCase !== 'OK') {
+        //短信未发送到 目标手机上
+        return res.resParamsErr('短信发送失败, 请稍后重试.')
+      }
+      
+
       // 请求正常返回，打印response对象
       let resId = response.RequestId
       phoneArray.push({id:resId, verify})
@@ -276,11 +284,21 @@ r.get('/login1_send', async(req, res) => {
         verify = null
       }, 2*60*1000)
     })
+    return
+  } else {
+    // 不存在. 提示注册
+    res.resBadErr({code:403, msg:'请先注册'})
+    return
   }
+} catch(err) {
+  res.resParamsErr('代码有误')
+}
 })
 
 // 手机号 - 验证码登录
 r.post('/login1', async(req, res) => {
+try {
+  console.log(req.body, ''.trim)
   let phone = req.body.phone.trim()
   let verify = req.body.verify.trim()
   let id = req.body.id.trim()
@@ -325,11 +343,13 @@ r.post('/login1', async(req, res) => {
     res.resOk({result: { token, uname, loginType}})
     return
   }
+} catch(err) {
+  res.resParamsErr('代码错误')
+}
 })
 
-/**
- * 人脸登录
-*/
+
+// 人脸登录
 r.post('/login2', upload.single('face'), async(req, res) => {
   if (!req.file) {
     return res.resParamsErr()
@@ -398,6 +418,9 @@ r.post('/login2', upload.single('face'), async(req, res) => {
 r.get('/verify', async(req, res, next) => {
   let phone = req.query.phone
   let mail = req.query.mail
+  if (!/^1\d{10}$/.test(phone)) {
+    return res.resParamsErr('手机号格式错误')
+  }
 
   let exist = await isExist(phone)
   if (exist) {

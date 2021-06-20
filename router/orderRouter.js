@@ -3,9 +3,10 @@ const utils             = require('../utils/utils')
 const { collection }    = require('../utils/mongodb')
 const path              = require('path')
 const { ObjectId }      = require('bson')
-const moment            = require('moment')
 const fs = require('fs')
 const r = express.Router()
+
+
 /**
  * 依赖
 */
@@ -108,7 +109,6 @@ try {
 }
 })
 
-
 // 获取 - 入住人信息数组
 r.get('/resideinfo', async(req, res)=> {
 try {
@@ -137,40 +137,158 @@ try {
 }
 })
 
-// 是否可 预定?
-r.get('/is', async(req, res) => {
-try {
-  let start = +req.query.start
-  let end   = +req.query.end
-  let rid = req.query.rid || '60c164a7074200005d003192'
-  if (!start || !end || !rid) {
+
+// 订单列表
+r.get('/list', async(req, res) => {
+  // ------------------------------------UId 模拟
+
+  let uid = ObjectId('60c0ed5cce550000800047a9')
+  let state = +req.query.state || -1
+  let where = [
+    {
+      $match: {
+        uid,
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        "orders.rid": 1,
+        "orders.oid": 1, //订单ID
+        "orders.cover": 1, //封面图
+        "orders.name": 1,  // 房间标题
+        "orders.start_time": 1,     
+        "orders.end_time": 1,
+        "orders.price":  1,
+        "orders.state": 1
+      }
+    }
+  ]
+  
+
+  let [err, resArr] = await utils.capture( userInfoTable.aggregate(where).toArray() )
+  if (err) {
     return res.resParamsErr()
   }
-  rid = ObjectId(rid)
 
-  const where = {
-    "orders.rid": rid,
-    $and: [
-      { "orders.start_time": { $lt:  end} },
-      { "orders.end_time": { $gt: start } }
-    ] 
-    
+  resArr = resArr[0].orders
+  // 可返回
+  if (state == -1) {
+    // 全部订单
+    res.resOk({result: resArr})
   }
-  const ops = { projection: {_id:1} }
-  const [err, resObj] = await utils.capture( userInfoTable.findOne(where, ops) )
-  if (resObj) {
-    // 有值. 说明不能预定
-    res.resBadErr('不能预定') 
-  } else {
-    // 
-    res.resOk('可以预定')
+  else if (state === 0){
+    // 待支付
+    const okRes =  resArr.filter(item => item.state==0)
+    res.resOk({ result: okRes })
   }
-} catch(err) {
-  console.log(err)
-  res.resParamsErr()
-}
+  else if (state === 1){
+    // 1已支付
+    const okRes =  resArr.filter(item => item.state==1)
+    res.resOk({ result: okRes })
+  }
+  else if (state === 2){
+    //  2已使用
+    const okRes =  resArr.filter(item => item.state==2)
+    res.resOk({ result: okRes })
+  }
+  else if (state === 3){
+    // 3已超时
+    const okRes =  resArr.filter(item => item.state==3)
+    res.resOk({ result: okRes })
+  }
 })
 
+// 订单详情
+r.get('/detail', async(req, res) => {
+try {
+
+  // ------------------------------------UId 模拟
+  console.log(234234234);
+  let uid = ObjectId('60c0ed5cce550000800047a9')
+  let rid = req.query.rid || ''
+  let oid = req.query.oid || ''
+  console.log(uid, rid, oid);
+  rid = ObjectId(rid)
+  oid = ObjectId(oid)
+  
+
+  // 订单详情
+  let detailWhere =[
+    {
+      $match: {
+        _id: ObjectId('60c164a7074200005d003192')
+      }
+    },
+    
+    {
+      $project: {
+        _id: 0,
+        r_name: 1,
+        params: 1,
+        location: 1,
+        location_x: 1,
+        location_y: 1,
+        owner:1,
+        service_id: 1, //商家ID, 将来
+        cover: {
+          $arrayElemAt: ['$swiper', 0]
+        }
+      }
+    },
+    
+    {
+      $project: {
+        _id: 0,
+        r_name: 1,
+        params: 1,
+        location: 1,
+        location_x: 1,
+        location_y: 1,
+        service_id: 1, //商家ID, 将来
+        owner:1,      // 商家信息
+        cover: {
+          $arrayElemAt: [ "$cover.url",0 ]
+        }
+      }
+    }
+  ]
+
+  // 购买人信息
+  let userWhere = {
+    projection: {
+      orders: {
+        $elemMatch: {
+          oid: ObjectId('60cb7c118229b328601b9fc7')
+        }
+      },
+      _id: 0,
+      "orders.name": 1,
+      "orders.phone": 1,
+      "orders.date": 1,
+    }
+  }
+
+  const detailPromise = detailTable.aggregate(detailWhere).toArray()
+  const userInfoPromise = userInfoTable.findOne({uid}, userWhere)
+  const allPromise = Promise.all([detailPromise, userInfoPromise]) 
+  let [err, resArr] = await utils.capture( allPromise )        // [err, [] ]
+  if (err || resArr.length===0) {
+    return res.resParamsErr()
+  }
+
+  console.log( resArr[0][0],'--------------------->>>>>>>')
+  let str = resArr[1].orders[0].phone
+  str = str.substr(0,3) + '****' + str.substr(-4)
+  resArr[1].orders[0].phone = str
+  
+
+  res.resOk({result: { detailInfo:resArr[0][0], userInfo: resArr[1].orders[0] }})
+
+} catch(err) {
+  res.resParamsErr('代码出错')
+  console.log(err)
+}})
 
 
 module.exports = r

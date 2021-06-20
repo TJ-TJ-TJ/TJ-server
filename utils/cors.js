@@ -14,18 +14,15 @@ let cors = (req, res, next) => {
     return res.send({code: 400, msg: '您不在白名单非法请求'})
   }
 
+  // 简单请求
+  res.setHeader('Access-Control-Allow-Origin', headers['origin'] || headers['Origin']  ||'*')
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', headers['origin'] || '*')
     res.setHeader('Access-Control-Allow-Headers', headers['access-control-request-headers'] || headers['Access-Control-Request-Headers'] )
     res.setHeader('Access-Control-Allow-Methods', 'POST,GET,PUT,DELETE,OPTIONS')
-
     // 将预请求的结果缓存, 秒单位
     res.setHeader('Access-Control-Max-Age', 3600*24*7)
     return res.end()
   }
-
-  // 简单请求
-  res.setHeader('Access-Control-Allow-Origin', headers['origin'] || '*')
   next()
 }
 
