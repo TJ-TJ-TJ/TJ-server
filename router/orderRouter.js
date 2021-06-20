@@ -21,25 +21,23 @@ r.get('/', async(req, res) => {
 
 // 预定 - 需登录
 r.post('/reserve', async(req, res) => {
-  // ---------------------------------------- 测试ＩＤ
   try {
-    let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
-    let rid = req.body.rid
-    let oid = ObjectId()
-    if (!rid) { return res.resParamsErr() }
+    let uid = ObjectId(req.user.uid) //用户UID
+    let rid = ObjectId(req.body.rid) // 房间ID
+    let oid = ObjectId()             //订单ID
 
     let {title,cover,r_params, start_time, end_time, price, name, phone } = req.body
 
     let where = {
       uid,
       "orders.rid": { 
-        $ne: ObjectId(rid)
+        $ne: rid
       }
     }
     let upObj = {
       $addToSet: {
         orders: {
-          rid: ObjectId(rid),
+          rid,   
           title,  // 店的名字
           r_params,
           cover,
@@ -81,13 +79,8 @@ r.post('/reserve', async(req, res) => {
 // 支付 - 需登录
 r.post('/reserve/pay', async(req, res) => {
 try {
-  let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
- 
-  let { oid } = req.query
-  if (!oid) {
-    return res.resParamsErr()
-  }
-  oid = ObjectId(oid)
+  const uid = ObjectId(req.user.uid) //用户UID
+  const oid = ObjectId(req.query.oid)//订单ID
 
   let where = {
     uid,
@@ -100,10 +93,10 @@ try {
   }
 
   let [err, resObj] = await utils.capture( userInfoTable.updateOne(where, upObj) )
-  if (err || resObj.modifiedCount!==1) { return res.resParamsErr() }
+  if (err || resObj.modifiedCount===0) { return res.resParamsErr() }
 
   // OK
-  res.resOk({result: {}})
+  res.resOk()
 } catch(err) {
   res.resParamsErr()
 }
@@ -112,7 +105,7 @@ try {
 // 获取 - 入住人信息数组
 r.get('/resideInfo', async(req, res)=> {
 try {
-  let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
+  let uid = ObjectId(req.user.uid) //用户UID
   
 
   let where = {
@@ -142,7 +135,7 @@ try {
 r.post('/addInfo', async(req, res) => {
 try {
   // 模拟UID -----------------------------------------------------------
-  let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
+  let uid = ObjectId(req.user.uid) //用户UID
   let { uname, id } = req.body
   uname = uname.trim()
   id = id.trim()
@@ -182,8 +175,7 @@ try {
 // 编辑 - 入住人信息
 r.put('/putInfo', async(req, res) => {
 try {
-  // 模拟UID -----------------------------------------------------------
-  let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
+  let uid = ObjectId(req.user.uid) //用户UID
   
   let { newName, newId, iId  } = req.body
   newName = newName.trim()
@@ -217,8 +209,12 @@ try {
 
 // 订单列表
 r.get('/list', async(req, res) => {
-  // ------------------------------------UId 模拟
-  let uid = ObjectId('60c0ed5cce550000800047a9')
+try {
+  // 最近订单
+  // 
+
+
+  let uid = ObjectId(req.user.uid)
   let state = +req.query.state || -1
   let where = [
     {
@@ -245,12 +241,17 @@ r.get('/list', async(req, res) => {
 
   let [err, resArr] = await utils.capture( userInfoTable.aggregate(where).toArray() )
   if (err) {
-    return res.resParamsErr()
+    return res.resDataErr() //数据库出错
   }
 
+  if (resArr.length === 0) {
+    return res.resOk({result: {}})
+  }
+
+  // 可遍历
   resArr = resArr[0].orders
   // 可返回
-  if (state == -1) {
+  if (state == -1 || state === null || state === undefined) {
     // 全部订单
     res.resOk({result: resArr})
   }
@@ -274,30 +275,28 @@ r.get('/list', async(req, res) => {
     const okRes =  resArr.filter(item => item.state==3)
     res.resOk({ result: okRes })
   }
+} catch(err) {
+  res.resParamsErr('服务器出错')
+  console.log(err);
+}
 })
 
 // 订单详情
 r.get('/detail', async(req, res) => {
 try {
-
-  // ------------------------------------UId 模拟
-  console.log(234234234);
-  let uid = ObjectId('60c0ed5cce550000800047a9')
-  let rid = req.query.rid || ''
-  let oid = req.query.oid || ''
-  console.log(uid, rid, oid);
-  rid = ObjectId(rid)
-  oid = ObjectId(oid)
-  
+  let { rid,oid } = req.query
+  let uid = ObjectId(req.user.uid) // UID
+  oid = ObjectId(oid) //订单ID
+  rid = ObjectId(rid) //订单ID
+  // ObjectId('60c164a7074200005d003192') 
 
   // 订单详情
-  let detailWhere =[
+  let detailWhere = [
     {
       $match: {
-        _id: ObjectId('60c164a7074200005d003192')
+        _id: rid
       }
     },
-    
     {
       $project: {
         _id: 0,
@@ -336,7 +335,7 @@ try {
     projection: {
       orders: {
         $elemMatch: {
-          oid: ObjectId('60cb7c118229b328601b9fc7')
+          oid: oid
         }
       },
       _id: 0,
@@ -350,15 +349,14 @@ try {
   const userInfoPromise = userInfoTable.findOne({uid}, userWhere)
   const allPromise = Promise.all([detailPromise, userInfoPromise]) 
   let [err, resArr] = await utils.capture( allPromise )        // [err, [] ]
-  if (err || resArr.length===0) {
-    return res.resParamsErr()
+  console.log('----------------------', resArr, err)
+  if (err) {
+    return res.resDataErr()
   }
 
-  console.log( resArr[0][0],'--------------------->>>>>>>')
   let str = resArr[1].orders[0].phone
   str = str.substr(0,3) + '****' + str.substr(-4)
   resArr[1].orders[0].phone = str
-  
 
   res.resOk({result: { detailInfo:resArr[0][0], userInfo: resArr[1].orders[0] }})
 

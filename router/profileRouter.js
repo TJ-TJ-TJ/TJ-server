@@ -12,8 +12,7 @@ const userInfoTable = collection('user_info')
 // 点赞功能 - 需要登录
 r.post('/like', async(req, res) => {
 try {
-  // ---------------------------------------- 测试ＩＤ
-  let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
+  let uid = ObjectId(req.user.uid) //用户UID
   let { rid, imgList, title, params, score, score_count, con_title,price,new_price } =
   req.body
   if (!rid) {
@@ -51,7 +50,7 @@ try {
 r.post('/unlike', async(req, res) => {
 try {
   // ---------------------------------------- 测试ＩＤ
-  let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
+  let uid = ObjectId(req.user.uid) //用户UID
   let rid = req.body.rid
   if (!rid) { return res.resParamsErr() }
   rid = ObjectId(rid)

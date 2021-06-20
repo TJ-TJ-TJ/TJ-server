@@ -14,7 +14,7 @@ const userInfoTable = collection('user_info')
 // 详情
 r.get('/',async (req, res) => {
 try {
-  let uid = ObjectId('60c0ed5cce550000800047a9') //用户ID 
+  let uid = ObjectId(req.user.uid)
 
   let _id = req.query.rid || 0    //房子ID
   _id = ObjectId(_id)
@@ -41,37 +41,37 @@ try {
 
 // 是否可 预定?
 r.get('/is', async(req, res) => {
-  try {
-    let start = +req.query.start
-    let end   = +req.query.end
-    let rid = req.query.rid || '60c164a7074200005d003192'
-    if (!start || !end || !rid) {
-      return res.resParamsErr()
-    }
-    rid = ObjectId(rid)
-  
-    const where = {
-      "orders.rid": rid,
-      $and: [
-        { "orders.start_time": { $lt:  end} },
-        { "orders.end_time": { $gt: start } }
-      ] 
-      
-    }
-    const ops = { projection: {_id:1} }
-    const [err, resObj] = await utils.capture( userInfoTable.findOne(where, ops) )
-    if (resObj) {
-      // 有值. 说明不能预定
-      res.resBadErr('不能预定') 
-    } else {
-      // 
-      res.resOk('可以预定')
-    }
-  } catch(err) {
-    console.log(err)
-    res.resParamsErr()
+try {
+
+  let start = +req.query.start
+  let end   = +req.query.end
+  let rid = req.query.rid || '60c164a7074200005d003192'
+  if (!start || !end || !rid) {
+    return res.resParamsErr()
   }
-})
+  rid = ObjectId(rid)
+
+  const where = {
+    "orders.rid": rid,
+    $and: [
+      { "orders.start_time": { $lt:  end} },
+      { "orders.end_time": { $gt: start } }
+    ] 
+    
+  }
+  const ops = { projection: {_id:1} }
+  const [err, resObj] = await utils.capture( userInfoTable.findOne(where, ops) )
+  if (resObj) {
+    // 有值. 说明不能预定
+    res.resBadErr('不能预定') 
+  } else {
+    // 
+    res.resOk('可以预定')
+  }
+} catch(err) {
+  console.log(err)
+  res.resParamsErr()
+}})
 
 
 

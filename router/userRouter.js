@@ -4,10 +4,12 @@ const tencentcloud      = require("tencentcloud-sdk-nodejs")
 const AipFaceClient     = require("baidu-aip-sdk").face
 const nodemailer        = require('nodemailer')
 const multer            = require('multer')
+const { ObjectId }      = require('bson')
 const { collection }    = require('../utils/mongodb')
 
 
 const userTable         = collection('user_login')
+const userInfoTable     = collection('user_info')
 const { generateToken, verifyToken } = require('../utils/jwt')
 const r = express.Router()
 
@@ -202,7 +204,7 @@ try {
         loginType
       }
       const token = generateToken(tokenData)
-      res.resOk({result: { token, uid,uname, loginType}})
+      res.resOk({result: { token, uid, uname, loginType}})
       return
     }
   }
@@ -565,6 +567,21 @@ r.post('/sigin', async(req, res) => {
     }
     const token = generateToken(tokenData)
     res.resOk({result: { token, uid, uname,loginType}})
+
+    // 写入 user_info
+    {
+      const insertInfo = {
+        uid: ObjectId(uid),
+        avatar: "https://pic.tujia.com/upload/festatic/app/tujia_useravatar.png",
+        uname,
+        sex: 1
+      }
+      const [err, resObj] = await utils.capture( userInfoTable.insertOne(insertInfo) )
+      if (err || resObj.insertedCount === 0) {
+        res.resBadErr('注册失败')
+        return
+      }
+    }
     return
   }
 })
@@ -614,6 +631,21 @@ r.post('/sigin2', async(req, res) => {
     }
     const token = generateToken(tokenData)
     res.resOk({result: { token, uid, uname, loginType}})
+    // 写入 user_info
+    {
+      // 写入 user_info
+      const insertInfo = {
+        uid: ObjectId(uid),
+        avatar: "https://pic.tujia.com/upload/festatic/app/tujia_useravatar.png",
+        uname,
+        sex: 1
+      }
+      const [err, resObj] = await utils.capture( userInfoTable.insertOne(insertInfo) )
+      if (err || resObj.insertedCount === 0) {
+        res.resBadErr('注册失败')
+        return
+      }
+    }
     return
   }
 })
@@ -649,7 +681,7 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
   [err, promiseRes] = await utils.capture( faceClient.addUser(base64, imageType, groupId, userId, options) )
   // 未知错误 - 网络错误
   if (err) {
-    res.send(err)
+    res.resDataErr('网络错误')
     return
   }
 
@@ -676,6 +708,21 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
     }
     const token = generateToken(tokenData)
     res.resOk({result: { token, uid, uname,loginType}})    // uname 是随机码. 已经存在. 
+    // 写入 user_info
+    {
+      // 写入 user_info
+      const insertInfo = {
+        uid: ObjectId(uid),
+        avatar: "https://pic.tujia.com/upload/festatic/app/tujia_useravatar.png",
+        uname,
+        sex: 1
+      }
+      const [err, resObj] = await utils.capture( userInfoTable.insertOne(insertInfo) )
+      if (err || resObj.insertedCount === 0) {
+        res.resBadErr('注册失败')
+        return
+      }
+    }
   }
 }, faceError)
 
