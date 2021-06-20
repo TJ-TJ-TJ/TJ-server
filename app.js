@@ -1,4 +1,5 @@
 const express         =   require('express')
+const path            =   require('path')
 
 
 /**
@@ -31,7 +32,8 @@ const app = express()
 /**
  * 全局 中间件调用 ----------------
 */
-app.use(cors) 
+app.use(cors)
+app.use('/public', express.static(path.join(__dirname, 'public/')) )
 app.use(bodyParser.json())
 // 封装 res响应体的 msg,code内容
 app.use(resParamsErr, resDataErr, resBadErr, resOk)
