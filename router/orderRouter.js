@@ -106,7 +106,6 @@ try {
 r.get('/resideInfo', async(req, res)=> {
 try {
   let uid = ObjectId(req.user.uid) //用户UID
-  
 
   let where = {
     uid
@@ -122,14 +121,12 @@ try {
   }
 
   let [err, resObj] = await utils.capture( userInfoTable.findOne(where, okAttr ) )
-  if (err) { return res.resParamsErr() }
+  if (err) { return res.resParamsErr('x') }
 
   res.resOk({result: resObj.info})
 } catch(err) {
-  console.log(err)
-  res.resParamsErr()
-}
-})
+  res.resParamsErr('代码错误')
+}})
 
 // 添加 - 入住人信息.
 r.post('/addInfo', async(req, res) => {
@@ -168,7 +165,6 @@ try {
   // OK
   res.resOk({msg:'添加成功'})
 } catch(e) {
-  console.log(e);
   res.resParamsErr()
 }})
 
@@ -203,7 +199,6 @@ try {
   // OK
   res.resOk('修改成功!')
 } catch(e) {
-  console.log(e, '-------------catch')
   res.resParamsErr()
 }})
 
@@ -245,7 +240,7 @@ try {
   }
 
   if (resArr.length === 0) {
-    return res.resOk({result: {}})
+    return res.resOk({result: [] })
   }
 
   // 可遍历
@@ -277,7 +272,6 @@ try {
   }
 } catch(err) {
   res.resParamsErr('服务器出错')
-  console.log(err);
 }
 })
 
@@ -349,7 +343,6 @@ try {
   const userInfoPromise = userInfoTable.findOne({uid}, userWhere)
   const allPromise = Promise.all([detailPromise, userInfoPromise]) 
   let [err, resArr] = await utils.capture( allPromise )        // [err, [] ]
-  console.log('----------------------', resArr, err)
   if (err) {
     return res.resDataErr()
   }
@@ -358,11 +351,11 @@ try {
   str = str.substr(0,3) + '****' + str.substr(-4)
   resArr[1].orders[0].phone = str
 
+  // OK
   res.resOk({result: { detailInfo:resArr[0][0], userInfo: resArr[1].orders[0] }})
-
+  // OK
 } catch(err) {
   res.resParamsErr('代码出错')
-  console.log(err)
 }})
 
 
