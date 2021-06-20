@@ -137,6 +137,45 @@ try {
 }
 })
 
+// 添加 - 入住人信息.
+r.post('/addInfo', async(req, res) => {
+try {
+  // 模拟UID -----------------------------------------------------------
+  let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
+  let { uname, id } = req.body
+  uname = uname.trim()
+  id = id.trim()
+
+  const query = {
+    uid,
+    "info.uname": {
+      $ne: uname,
+      $ne: id
+    }
+  }
+
+  const insertData = {
+    $addToSet: {
+      info: {
+        uname,
+        id,
+      }
+    }
+  }
+
+  const [err, resObj] = await utils.capture( userInfoTable.updateOne(query, insertData) )
+  if (err || resObj.modifiedCount===0) {
+    // 有误
+    res.resParamsErr()
+    return
+  }
+
+  // OK
+  res.resOk({msg:'添加成功'})
+} catch(e) {
+  console.log(e);
+  res.resParamsErr()
+}})
 
 // 订单列表
 r.get('/list', async(req, res) => {
@@ -289,6 +328,7 @@ try {
   res.resParamsErr('代码出错')
   console.log(err)
 }})
+
 
 
 module.exports = r
