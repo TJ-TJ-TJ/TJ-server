@@ -40,13 +40,13 @@ r.post('/reserve', async(req, res) => {
       $addToSet: {
         orders: {
           rid: ObjectId(rid),
-          title,  // 店
+          title,  // 店的名字
           r_params,
           cover,
           start_time,
           end_time,
           price,
-          name,  
+          name,  // 订单人名字. 
           oid,
           phone,
           date: Date.now(),
@@ -110,7 +110,7 @@ try {
 })
 
 // 获取 - 入住人信息数组
-r.get('/resideinfo', async(req, res)=> {
+r.get('/resideInfo', async(req, res)=> {
 try {
   let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
   
@@ -123,7 +123,8 @@ try {
       _id: 0,
       info: 1,
       "info.uname":1,
-      "info.id":1
+      "info.id":1,
+      "info.iid":1,
     }
   }
 
@@ -148,8 +149,8 @@ try {
 
   const query = {
     uid,
-    "info.uname": {
-      $ne: uname,
+    "info.id": {
+      // 锁定当前记录
       $ne: id
     }
   }
@@ -159,6 +160,7 @@ try {
       info: {
         uname,
         id,
+        iid: ObjectId()
       }
     }
   }
@@ -177,10 +179,45 @@ try {
   res.resParamsErr()
 }})
 
+// 编辑 - 入住人信息
+r.put('/putInfo', async(req, res) => {
+try {
+  // 模拟UID -----------------------------------------------------------
+  let uid = ObjectId('60c0ed5cce550000800047a9') //用户UID
+  
+  let { newName, newId, iId  } = req.body
+  newName = newName.trim()
+  newId = newId.trim()
+  iId   = iId.trim()
+  iId   = ObjectId(iId)
+
+  const query = {
+    uid,
+    "info.iid": iId  //锁定当前uid对应的那条记录 下的特定的iid
+  }
+  const insertData = {
+    // 修改字段
+    $set: {
+      "info.$.uname": newName,
+      "info.$.id": newId,
+    }
+  }
+
+  const [err, resObj] = await utils.capture( userInfoTable.updateOne(query, insertData) )
+  if (err || resObj.modifiedCount===0) {
+    return res.resParamsErr()
+  }
+
+  // OK
+  res.resOk('修改成功!')
+} catch(e) {
+  console.log(e, '-------------catch')
+  res.resParamsErr()
+}})
+
 // 订单列表
 r.get('/list', async(req, res) => {
   // ------------------------------------UId 模拟
-
   let uid = ObjectId('60c0ed5cce550000800047a9')
   let state = +req.query.state || -1
   let where = [
@@ -193,9 +230,10 @@ r.get('/list', async(req, res) => {
       $project: {
         _id: 0,
         "orders.rid": 1,
+        "orders.title": 1, //房间标题
         "orders.oid": 1, //订单ID
         "orders.cover": 1, //封面图
-        "orders.name": 1,  // 房间标题
+        // "orders.name": 1,  // 
         "orders.start_time": 1,     
         "orders.end_time": 1,
         "orders.price":  1,

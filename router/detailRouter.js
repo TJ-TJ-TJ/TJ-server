@@ -71,8 +71,7 @@ r.get('/is', async(req, res) => {
     console.log(err)
     res.resParamsErr()
   }
-  })
-  
+})
 
 
 

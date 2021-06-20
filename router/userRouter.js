@@ -202,7 +202,7 @@ try {
         loginType
       }
       const token = generateToken(tokenData)
-      res.resOk({result: { token, uname,loginType}})
+      res.resOk({result: { token, uid,uname, loginType}})
       return
     }
   }
@@ -231,7 +231,7 @@ try {
         loginType
       }
       const token = generateToken(tokenData)
-      res.resOk({result: { token, uname,loginType}})
+      res.resOk({result: { token, uid, uname,loginType}})
       return
     }
   }
@@ -340,7 +340,7 @@ try {
       loginType
     }
     const token = generateToken(tokenData)
-    res.resOk({result: { token, uname, loginType}})
+    res.resOk({result: { token, uname, uid ,loginType}})
     return
   }
 } catch(err) {
@@ -400,7 +400,7 @@ r.post('/login2', upload.single('face'), async(req, res) => {
         userId
       }
       const token = generateToken(tokenData)
-      res.resOk({result: { token, uname,isLogin,loginType}})
+      res.resOk({result: { token, uid, uname,isLogin,loginType}})
     } else {
       // 用户没有注册
       return res.resBadErr('未注册')
@@ -564,7 +564,7 @@ r.post('/sigin', async(req, res) => {
       loginType
     }
     const token = generateToken(tokenData)
-    res.resOk({result: { token, uname,loginType}})
+    res.resOk({result: { token, uid, uname,loginType}})
     return
   }
 })
@@ -613,7 +613,7 @@ r.post('/sigin2', async(req, res) => {
       loginType
     }
     const token = generateToken(tokenData)
-    res.resOk({result: { token, uname, loginType}})
+    res.resOk({result: { token, uid, uname, loginType}})
     return
   }
 })
@@ -675,7 +675,7 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
       loginType
     }
     const token = generateToken(tokenData)
-    res.resOk({result: { token, uname,loginType}})    // uname 是随机码. 已经存在. 
+    res.resOk({result: { token, uid, uname,loginType}})    // uname 是随机码. 已经存在. 
   }
 }, faceError)
 

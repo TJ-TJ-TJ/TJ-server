@@ -16,7 +16,7 @@ try {
     
     // 排除1
     if (token === undefined || token===null) {
-      res.send({code:403, msg:'您未登录'})
+      res.send({code:408, msg:'您未登录'})
       return
     }
     let data = verifyToken(token)
@@ -29,13 +29,13 @@ try {
       
     // }
     if (data instanceof Error) {
-      res.send({code:403, msg: data.name})
+      res.send({code:408, msg: data.name})
       return
     }
 
     // 排除3 - 
     if (data.isLogin !== true) {
-      res.send({code:403, msg:'您未登录'})
+      res.send({code:408, msg:'您未登录'})
       return
     }
 
