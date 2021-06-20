@@ -265,7 +265,8 @@ try {
         res.resDataErr('服务器遇到错误, 请重试')
         return
       }
-      if (response.SendStatusSet[0].Code.toLocaleUpperCase !== 'OK') {
+
+      if (response.SendStatusSet[0].Code.toLocaleUpperCase() !== 'OK'.toLocaleUpperCase()) {
         //短信未发送到 目标手机上
         return res.resParamsErr('短信发送失败, 请稍后重试.')
       }

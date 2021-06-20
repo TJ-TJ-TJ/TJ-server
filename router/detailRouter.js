@@ -14,8 +14,7 @@ const userInfoTable = collection('user_info')
 // 详情
 r.get('/',async (req, res) => {
 try {
-  let uid = ObjectId(req.user.uid)
-
+  
   let _id = req.query.rid || 0    //房子ID
   _id = ObjectId(_id)
   let where = { _id }
@@ -25,11 +24,16 @@ try {
   }
 
   // 是否收藏.
-  let [err2, resObj2] = await utils.capture( userInfoTable.findOne({ uid, "collect.rid": _id }) )
-  if (err2 || !resObj2) {
+  try {
+    let uid = ObjectId(req.user.uid)
+    let [err2, resObj2] = await utils.capture( userInfoTable.findOne({ uid, "collect.rid": _id }) )
+    if (err2 || !resObj2) {
+      resObj.isCollect = false
+    } else {
+      resObj.isCollect = true
+    }
+  } catch(e) {
     resObj.isCollect = false
-  } else {
-    resObj.isCollect = true
   }
 
   res.resOk({ result: resObj })
