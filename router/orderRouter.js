@@ -121,9 +121,9 @@ try {
   }
 
   let [err, resObj] = await utils.capture( userInfoTable.findOne(where, okAttr ) )
-  if (err) { return res.resParamsErr('x') }
+  if (err || !resObj) { return res.resParamsErr('x') }
 
-  res.resOk({result: resObj.info})
+  res.resOk({result: resObj.info || []})
 } catch(err) {
   res.resParamsErr('代码错误')
 }})
@@ -207,14 +207,14 @@ r.get('/list', async(req, res) => {
 try {
   // 最近订单
   // 
-
+  
 
   let uid = ObjectId(req.user.uid)
   let state = +req.query.state || -1
   let where = [
     {
       $match: {
-        uid,
+        uid
       }
     },
     {
@@ -233,15 +233,13 @@ try {
     }
   ]
   
+  
 
   let [err, resArr] = await utils.capture( userInfoTable.aggregate(where).toArray() )
   if (err) {
     return res.resDataErr() //数据库出错
   }
-
-  if (resArr.length === 0) {
-    return res.resOk({result: [] })
-  }
+  
 
   // 可遍历
   resArr = resArr[0].orders
@@ -261,7 +259,9 @@ try {
     res.resOk({ result: okRes })
   }
   else if (state === 2){
+    
     //  2已使用
+    console.log(11111111111111)
     const okRes =  resArr.filter(item => item.state==2)
     res.resOk({ result: okRes })
   }
@@ -269,7 +269,10 @@ try {
     // 3已超时
     const okRes =  resArr.filter(item => item.state==3)
     res.resOk({ result: okRes })
+  } else {
+    res.resOk({result: [], msg:'该状态不存在'})
   }
+
 } catch(err) {
   res.resParamsErr('服务器出错')
 }
