@@ -20,61 +20,60 @@ r.get('/', async(req, res) => {
 
 
 // 预定 - 需登录
-r.post('/reserve', async(req, res) => {
-  try {
-    let uid = ObjectId(req.user.uid) //用户UID
-    let rid = ObjectId(req.body.rid) // 房间ID
-    let oid = ObjectId()             //订单ID
+r.post('/reserve', async(req, res) => {try {
+  
+  let uid = ObjectId(req.user.uid) //用户UID
+  let rid = ObjectId(req.body.rid) // 房间ID
+  let oid = ObjectId()             //订单ID
 
-    let {title,cover,r_params, start_time, end_time, price, name, phone } = req.body
+  let {title,cover,r_params, start_time, end_time, price, name, phone } = req.body
 
-    let where = {
-      uid,
-      "orders.rid": { 
-        $ne: rid
-      }
+  let where = {
+    uid,
+    "orders.rid": { 
+      $ne: rid
     }
-    let upObj = {
-      $addToSet: {
-        orders: {
-          rid,   
-          title,  // 店的名字
-          r_params,
-          cover,
-          start_time,
-          end_time,
-          price,
-          name,  // 订单人名字. 
-          oid,
-          phone,
-          date: Date.now(),
-          state: 0
-        }
-      }
-    }
-    let [err, resObj] = await utils.capture( userInfoTable.updateOne(where, upObj) )
-    if (err || resObj.modifiedCount!==1) { return res.resParamsErr() }
-
-    // OK
-    res.resOk({result: {oid}})
-
-    // 12分钟后 如果订单状态还是未支付, 删除
-    setTimeout(async _=>{
-      let where = {
-        uid, "orders.state":0, "orders.oid":oid,
-      }
-      let update = {
-        $pull: {
-          "orders": { oid, state:0 }
-        }
-      }
-      utils.capture( userInfoTable.updateOne(where, update) )
-    }, 12*60*1000) // 12分钟
-
-  } catch(err) {
-    res.resParamsErr()
   }
-})
+  let upObj = {
+    $addToSet: {
+      orders: {
+        rid,   
+        title,  // 店的名字
+        r_params,
+        cover,
+        start_time,
+        end_time,
+        price,
+        name,  // 订单人名字. 
+        oid,
+        phone,
+        date: Date.now(),
+        state: 0
+      }
+    }
+  }
+  let [err, resObj] = await utils.capture( userInfoTable.updateOne(where, upObj) )
+  if (err || resObj.modifiedCount!==1) { return res.resParamsErr() }
+
+  // OK
+  res.resOk({result: {oid}})
+
+  // 12分钟后 如果订单状态还是未支付, 删除
+  setTimeout(async _=>{
+    let where = {
+      uid, "orders.state":0, "orders.oid":oid,
+    }
+    let update = {
+      $pull: {
+        "orders": { oid, state:0 }
+      }
+    }
+    utils.capture( userInfoTable.updateOne(where, update) )
+  }, 12*60*1000) // 12分钟
+  
+} catch(err) {
+  res.resParamsErr()
+}})
 
 // 支付 - 需登录
 r.post('/reserve/pay', async(req, res) => {

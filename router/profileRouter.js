@@ -26,14 +26,14 @@ try {
   const [err, resObj] = await utils.capture( userInfoTable.findOne(query, project) )
 
   if (err || !resObj) {
-    return res.resBadErr()
+    return res.resBadErr({result:[], msg:'数据库错误'})
   }
 
   // OK
   res.resOk({result: resObj.collect || []})
   //ok
 } catch(e) {
-  res.resParamsErr('代码错误')
+  res.resOk({result:[], msg:'空'})
 }})
 
 // 加入收藏   - POST
@@ -69,7 +69,6 @@ try {
   res.resOk()
   // OK
 } catch(err) {
-  console.log(err)
   res.resParamsErr()
 }
 })
@@ -77,7 +76,6 @@ try {
 // 取消收藏   - DELETE
 r.delete('/collect', async(req, res) => {
 try {
-  // ---------------------------------------- 测试ＩＤ
   let uid = ObjectId(req.user.uid) //用户UID
   let rid = req.body.rid
   if (!rid) { return res.resParamsErr() }
@@ -184,14 +182,14 @@ try {
   const [err, resObj] = await utils.capture( userInfoTable.findOne(query, project) )
 
   if (err || !resObj) {
-    return res.resBadErr()
+    return res.resBadErr({result:[]})
   }
 
   // OK
   res.resOk({result: resObj.history || []})
   // OK
 } catch(e) {
-  res.resParamsErr('代码出错')
+  res.resOk({result:[], msg: '空,参数不合格'})
 }})
 
 module.exports = r
