@@ -16,7 +16,7 @@ function resParamsErr(req, res, next) {
 
     if (typeof args === 'object' && args!==null) {
       args.code || (args.code=400)
-      rgs.ok || (rgs.ok=0)
+      args.ok || (args.ok=0)
       args.msg || (args.msg= '参数不符合要求')
       res.status(args.code).send(args)
       return
@@ -142,6 +142,38 @@ function resOk(req, res, next) {
   res.resOk = fun
   next()
 }
+
+
+// function resNotFound(req, res, next) {
+//   // 挂载到 res中
+//   let fun = args=> {
+//     if (typeof args === 'string') {
+//       // 修改 msg参数
+//       res.send({ ok:1, code:200, msg:args, result: })
+//       return
+//     }
+
+//     // 传递对象
+//     if (typeof args === 'object' && args!==null) {
+//       args.code || (args.code=200)
+//       if (args.ok===undefined || args.ok===null) {
+//         args.ok = 1
+//       }
+//       args.msg || (args.msg='ok')
+//       res.send(args)
+//       return
+//     }
+
+//     // 默认情况
+//     if (typeof args === 'undefined') {
+//       res.send({ ok:1, code:200, msg:'未找到当前资源' })
+//       return
+//     }
+//   }
+
+//   res.resOk = fun
+//   next()
+// }
 
 module.exports = {
   resParamsErr, resDataErr, resBadErr, resOk

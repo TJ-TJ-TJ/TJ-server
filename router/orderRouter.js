@@ -121,11 +121,11 @@ try {
   }
 
   let [err, resObj] = await utils.capture( userInfoTable.findOne(where, okAttr ) )
-  if (err || !resObj) { return res.resParamsErr('x') }
+  if (err || !resObj) { return res.resParamsErr({result:[]}) }
 
   res.resOk({result: resObj.info || []})
 } catch(err) {
-  res.resParamsErr('代码错误')
+  res.resOk({result:[], msg:'未找到符合要求数据'})
 }})
 
 // 添加 - 入住人信息.
@@ -231,7 +231,6 @@ try {
     }
   ]
   
-  
 
   let [err, resArr] = await utils.capture( userInfoTable.aggregate(where).toArray() )
   if (err) {
@@ -247,7 +246,6 @@ try {
   }
   else if (state === 0){
     // 待支付
-    console.log('-----------BUG', state);
     const okRes =  resArr.filter(item => item.state==0)
     res.resOk({ result: okRes })
   }
@@ -257,7 +255,6 @@ try {
     res.resOk({ result: okRes })
   }
   else if (state === 2){
-    
     //  2已使用
     const okRes =  resArr.filter(item => item.state==2)
     res.resOk({ result: okRes })
@@ -267,13 +264,13 @@ try {
     const okRes =  resArr.filter(item => item.state==3)
     res.resOk({ result: okRes })
   } else {
+    // 不存在
     res.resOk({result: [], msg:'该状态不存在'})
   }
 
 } catch(err) {
-  res.resParamsErr('服务器出错')
-}
-})
+  res.resOk({result:[], msg:'未匹配到要求数据'})
+}})
 
 // 订单详情
 r.get('/detail', async(req, res) => {
@@ -282,7 +279,6 @@ try {
   let uid = ObjectId(req.user.uid) // UID
   oid = ObjectId(oid) //订单ID
   rid = ObjectId(rid) //订单ID
-  // ObjectId('60c164a7074200005d003192') 
 
   // 订单详情
   let detailWhere = [
@@ -344,7 +340,7 @@ try {
   const allPromise = Promise.all([detailPromise, userInfoPromise]) 
   let [err, resArr] = await utils.capture( allPromise )        // [err, [] ]
   if (err) {
-    return res.resDataErr()
+    return res.resDataErr({result:{}, msg:'数据库出错'})
   }
 
   let str = resArr[1].orders[0].phone
@@ -355,7 +351,7 @@ try {
   res.resOk({result: { detailInfo:resArr[0][0], userInfo: resArr[1].orders[0] }})
   // OK
 } catch(err) {
-  res.resParamsErr('代码出错')
+  res.resOk({result:{}, msg:'未找到符合要求的'})
 }})
 
 
