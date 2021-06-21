@@ -135,7 +135,7 @@ async function isExist(number) {
 
 
 /**
- * 账号密码登录
+ * 账号密码登录 -uid
 */
 r.post('/login', async(req, res, next) => {
 try {
@@ -325,7 +325,7 @@ try {
 
 
 // 人脸登录
-r.post('/login2', upload.single('face'), async(req, res) => {
+r.post('/loginFace', upload.single('face'), async(req, res) => {
   if (!req.file) {
     return res.resParamsErr()
   }
@@ -409,24 +409,12 @@ r.get('/verify', async(req, res, next) => {
         secretId: 'AKID53rSpxqU0KRL2Un7MUTEzav2yqTr0uZ6',
         secretKey: 'fCXeWWJrAF6h7f3EHCuPuFPPAfwxiFXe',
       },
-      /* 必填：地域信息，可以直接填写字符串ap-guangzhou，或者引用预设的常量 */
       region: "ap-guangzhou",
-      /* 非必填:
-       * 客户端配置对象，可以指定超时时间等配置 */
       profile: {
-        /* SDK默认用TC3-HMAC-SHA256进行签名，非必要请不要修改这个字段 */
         signMethod: "HmacSHA256",
         httpProfile: {
-          /* SDK默认使用POST方法。
-           * 如果你一定要使用GET方法，可以在这里设置。GET方法无法处理一些较大的请求 */
           reqMethod: "POST",
-          /* SDK有默认的超时时间，非必要请不要进行调整
-           * 如有需要请在代码中查阅以获取最新的默认值 */
           reqTimeout: 30,
-          /**
-           * SDK会自动指定域名。通常是不需要特地指定域名的，但是如果你访问的是金融区的服务
-           * 则必须手动指定域名，例如sms的上海金融区域名： sms.ap-shanghai-fsi.tencentcloudapi.com
-           */
           endpoint: "sms.tencentcloudapi.com"
         },
       },
@@ -437,7 +425,6 @@ r.get('/verify', async(req, res, next) => {
     smsParams.TemplateParamSet = [verify, 2]  //
     
     client.SendSms(smsParams, function(err, response) {
-      // 请求异常返回，打印异常信息
       if (err) {
         res.resDataErr('服务器遇到错误, 请重试')
         return
@@ -529,9 +516,7 @@ try {
   
   // 非法的操作.
   if (err || resObj.insertedCount!==1) {
-    console.log('已 存入数据库.  if内部 ', '------->>>>>')
     return res.resDataErr('注册失败, 请重试')
-    
   }
   console.log('已 存入数据库. ', '------->>>>> if外部', err, resObj)
   

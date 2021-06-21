@@ -25,7 +25,7 @@ r.post('/reserve', async(req, res) => {try {
   let uid = ObjectId(req.user.uid) //用户UID
   let rid = ObjectId(req.body.rid) // 房间ID
   let oid = ObjectId()             //订单ID
-
+  let date = Date.now()            // 下单时间
   let {title,cover,r_params, start_time, end_time, price, name, phone } = req.body
 
   let where = {
@@ -47,7 +47,7 @@ r.post('/reserve', async(req, res) => {try {
         name,  // 订单人名字. 
         oid,
         phone,
-        date: Date.now(),
+        date,
         state: 0
       }
     }
@@ -56,7 +56,7 @@ r.post('/reserve', async(req, res) => {try {
   if (err || resObj.modifiedCount!==1) { return res.resParamsErr() }
 
   // OK
-  res.resOk({result: {oid}})
+  res.resOk({result: {oid, date}})
 
   // 12分钟后 如果订单状态还是未支付, 删除
   setTimeout(async _=>{
@@ -132,9 +132,10 @@ r.post('/addInfo', async(req, res) => {
 try {
   // 模拟UID -----------------------------------------------------------
   let uid = ObjectId(req.user.uid) //用户UID
+  let iid = ObjectId()
   let { uname, id } = req.body
   uname = uname.trim()
-  id = id.trim()
+  id = id.trim()  //身份证
 
   const query = {
     uid,
@@ -149,7 +150,7 @@ try {
       info: {
         uname,
         id,
-        iid: ObjectId()
+        iid,
       }
     }
   }
@@ -162,7 +163,7 @@ try {
   }
 
   // OK
-  res.resOk({msg:'添加成功'})
+  res.resOk({result: {iid} ,msg:'添加成功'})
 } catch(e) {
   res.resParamsErr()
 }})
