@@ -206,11 +206,9 @@ try {
 r.get('/list', async(req, res) => {
 try {
   // 最近订单
-  // 
-  
 
   let uid = ObjectId(req.user.uid)
-  let state = +req.query.state || -1
+  let state = +req.query.state
   let where = [
     {
       $match: {
@@ -240,16 +238,16 @@ try {
     return res.resDataErr() //数据库出错
   }
   
-
   // 可遍历
   resArr = resArr[0].orders
   // 可返回
-  if (state == -1 || state === null || state === undefined) {
+  if (state === -1 || state === null || state === undefined) {
     // 全部订单
     res.resOk({result: resArr})
   }
   else if (state === 0){
     // 待支付
+    console.log('-----------BUG', state);
     const okRes =  resArr.filter(item => item.state==0)
     res.resOk({ result: okRes })
   }
@@ -261,7 +259,6 @@ try {
   else if (state === 2){
     
     //  2已使用
-    console.log(11111111111111)
     const okRes =  resArr.filter(item => item.state==2)
     res.resOk({ result: okRes })
   }
