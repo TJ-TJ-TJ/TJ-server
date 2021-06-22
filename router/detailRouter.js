@@ -10,6 +10,38 @@ const r = express.Router()
 */
 const detailTable = collection('detail')
 const userInfoTable = collection('user_info')
+/**
+ * @params { start_time, end_time } Number
+ * @params { rid }                  ObjectId类型
+ * @result { Boolean } true,可以预定;
+*/
+async function isReserve({start_time, end_time, rid}) {
+  try {
+    start_time = Number(start_time)
+    end_time   = Number(end_time)
+    const where = {
+      "orders.rid": rid,
+      $and: [
+        { "orders.start_time": { $lt:  end_time} },
+        { "orders.end_time": { $gt: start_time } }
+      ] 
+      
+    }
+    const ops = { projection: {_id:1} }
+    const [err, resObj] = await utils.capture( userInfoTable.findOne(where, ops) )
+    if (resObj) {
+      // 有值. 说明不能预定
+      return false
+    } else {
+      // 可以预定
+      return true
+    }
+  } catch(err) {
+    return false
+}}
+
+
+
 
 // 详情
 r.get('/',async (req, res) => {
@@ -55,23 +87,14 @@ try {
   }
   rid = ObjectId(rid)
 
-  const where = {
-    "orders.rid": rid,
-    $and: [
-      { "orders.start_time": { $lt:  end} },
-      { "orders.end_time": { $gt: start } }
-    ] 
-    
+
+  // 可以查询
+  if (!isReserve({start_time:start, end_time:end, rid})) {
+    return res.resBadErr()
   }
-  const ops = { projection: {_id:1} }
-  const [err, resObj] = await utils.capture( userInfoTable.findOne(where, ops) )
-  if (resObj) {
-    // 有值. 说明不能预定
-    res.resBadErr('不能预定') 
-  } else {
-    // 
-    res.resOk('可以预定')
-  }
+  // 可以预定
+  res.resOk()
+  
 } catch(err) {
   console.log(err)
   res.resParamsErr('参数有误')

@@ -13,20 +13,20 @@ const r = express.Router()
 const detailTable   = collection('detail')
 const userInfoTable = collection('user_info')
 
-
-r.get('/', async(req, res) => {
-  res.resOk({result:'ok'})
-})
-
-// ***** async function
-async function isReserve({start, end, rid}) {
+/**
+ * @params { start_time, end_time } Number
+ * @params { rid }                  ObjectId类型
+ * @result { Boolean } true,可以预定;
+*/
+async function isReserve({start_time, end_time, rid}) {
 try {
-
+  start_time = Number(start_time)
+  end_time   = Number(end_time)
   const where = {
     "orders.rid": rid,
     $and: [
-      { "orders.start_time": { $lt:  end} },
-      { "orders.end_time": { $gt: start } }
+      { "orders.start_time": { $lt:  end_time} },
+      { "orders.end_time": { $gt: start_time } }
     ] 
     
   }
@@ -52,13 +52,16 @@ r.post('/reserve', async(req, res) => {try {
   let oid = ObjectId()             //订单ID
   let date = Date.now()            // 下单时间
   let {title,cover,r_params, start_time, end_time, price, name, phone } = req.body
+  start_time = Number(start_time)
+  end_time = Number(end_time)
 
-  const reserve = await isReserve({start, end, rid})
+  const reserve = await isReserve({start_time, end_time, rid})
   if (!reserve) {
     // 不能预定
     return res.resBadErr('当前房源已被预定!')
   }
 
+  
   // 逻辑有误.   一个用户 可以预定多次相同的房间. 
   let where = {
     uid,
@@ -81,8 +84,9 @@ r.post('/reserve', async(req, res) => {try {
       }
     }
   }
+  
   let [err, resObj] = await utils.capture( userInfoTable.updateOne(where, upObj) )
-  if (err || resObj.modifiedCount!==1) { return res.resParamsErr() }
+  if (err || resObj.modifiedCount!==1) { return res.resParamsErr(err) }
 
   // OK
   res.resOk({result: {oid, date}})
@@ -101,7 +105,7 @@ r.post('/reserve', async(req, res) => {try {
   }, 12*60*1000) // 12分钟
   
 } catch(err) {
-  res.resParamsErr()
+  res.resParamsErr(err)
 }})
 
 // 支付 - 需登录
@@ -123,7 +127,7 @@ try {
 
   let [err, resObj] = await utils.capture( userInfoTable.updateOne(where, upObj) )
   if (err) { return res.resBadErr('数据库出错') }
-  if (resObj.modifiedCount===0) { return res.resBadErr('支付失败') }
+  if (resObj.modifiedCount===0) { return res.resBadErr('您想重复支付吗') }
 
 
   // OK
@@ -327,6 +331,7 @@ try {
     {
       $project: {
         _id: 0,
+        new_price: 1,
         r_name: 1,
         params: 1,
         location: 1,
@@ -343,6 +348,7 @@ try {
     {
       $project: {
         _id: 0,
+        new_price: 1,
         r_name: 1,
         params: 1,
         location: 1,
@@ -366,9 +372,11 @@ try {
         }
       },
       _id: 0,
+      "orders.oid": 1,
       "orders.name": 1,
       "orders.phone": 1,
       "orders.date": 1,
+      "orders.state": 1,
     }
   }
 

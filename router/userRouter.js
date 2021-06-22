@@ -537,7 +537,7 @@ try {
     {
       const insertInfo = {
         uid: ObjectId(uid),
-        avatar: "//",
+        avatar: "https://z3.ax1x.com/2021/06/22/RZOHpR.png",
         uname,
         sex: 1
       }
