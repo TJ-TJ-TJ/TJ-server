@@ -10,72 +10,115 @@ const r = express.Router()
 */
 const userInfoTable   = collection('user_info')
 const userLoginTable  = collection('user_login')
-const phoneArray      = []  //element: 手机号                        手机号  // 发送过的队列
-const successArray    = []  //element: {id:xxxxxx, verify:12345, }   ID 验证码 手机号  // 成功发送验证码的队列
+
+
 
 // 个人资料
 // r.get('/info')
 
-// 发送验证码     --- 待封装
-r.get('/updateSms', async(req,res) => {
-  let uphone    = req.query.uphone
-      uphone    = uphone.trim()
+/**
+ * @params{ Object }, 原生 smsParams
+ * query 方式传参.   uphone 字段。   res： { result:id }
+*/
+function sendOneSmsRouter(smsParams) {
 
-  if (!/^1\d{10}$/.test(uphone)) {
-    return res.resParamsErr('手机号有误')
-  }
-  // 1分钟内， 不能发送多次
-  if (phoneArray.find(v => v === uphone)) {
-    // 找到了，重复
-    return res.resBadErr('1分钟内，不能多次发送')
+  // 当前 手机号(ID代替) 和  短信验证码验证，是否匹配
+  sendOneSmsRouter.authVerifyCode = function({id, verify}) {
+    return module.successArray.find(obj => obj.id===id && obj.verify===verify)
   }
 
-  // 1分钟内，不能多次发送
-  phoneArray.push(uphone)
-
-  // 1分钟以后取消
-  setTimeout(_ => {
-    const i = phoneArray.findIndex(v => v === uphone)
-    if (i >= 0) {
-      phoneArray.splice(i, 1)
+  // 删除 successArray中成功的
+  sendOneSmsRouter.smsOk = function({id}) {
+    const i = module.successArray.findIndex(obj => obj.id===id)
+    if (i>=0) {
+      module.successArray.splice(i, 1)
     }
-  }, 60*1000)
-
-  // 参数通过
-  let verify = Math.random().toString().substr(2, 5)
-  let smsParams = {
-    PhoneNumberSet: [`+86${uphone}`],
-    TemplateId: "1006671",         // 修改密码模板
-    TemplateParamSet: [verify, 8]  // 验证码， 8分钟
-  }
-  // 发送验证码
-  const [err, resObj] = await sendOneSms(smsParams) // 对 reject promise已经处理了
-  if (err) {
-    return res.resParamsErr('未知错误')
   }
 
-  if (resObj.ok == 1) {
-    // OK - 返回 ID
-    const id = resObj.id 
-    //element: {id:xxxxxx, verify:12345, uphone:17538590302, }
-    successArray.push({id, verify})
-    // 8分钟内失效
+
+  //element: 手机号  发送过的队列  - 1分内不能重复发送
+  module.phoneArray || (module.phoneArray = [])  // 可能在一个模块内 调用多次
+
+  //element: {id:xxxxxx, verify:12345, }   成功发送验证码的队列 - 8分钟有效期
+  module.successArray || (module.successArray=[])  // 可能在一个模块内 调用多次
+
+
+  return async function(req,res,next) {try {
+    
+    let uphone    = req.query.uphone
+        uphone    = uphone.trim()
+        
+    if (!/^1\d{10}$/.test(uphone)) {
+      return res.resParamsErr('手机号格式有误')
+    }
+
+    // 1分钟内， 不能发送多次
+    if (module.phoneArray.find(v => v === uphone)) {
+      // 找到了，重复
+      return res.resBadErr('1分钟内，不能多次发送')
+    }
+  
+    // 1分钟内，不能多次发送
+    module.phoneArray.push(uphone)
+  
+    // 1分钟以后取消
     setTimeout(_ => {
-      const i = successArray.findIndex(obj => obj.id === id)
+      const i = module.phoneArray.findIndex(v => v === uphone)
       if (i >= 0) {
-        successArray.splice(i, 1)
+        module.phoneArray.splice(i, 1)
       }
-    }, 8*60*1000)
-    return res.resOk({result: {id}})
-  } else {
-    return res.resParamsErr(resObj.statusObj.Code)
-  }
+    }, 60*1000)
+  
+    // 参数通过
+    let verify = Math.random().toString().substr(2, 5)
+    
+    
+    let smsParamsDetail = {
+      PhoneNumberSet: [`+86${uphone}`],
+      TemplateId: "1006671",         // 修改密码模板
+      TemplateParamSet: [verify, 8]  // 验证码， 8分钟
+    }
+    Object.assign(smsParamsDetail, smsParams)
+    // 发送验证码
+    const [err, resObj] = await sendOneSms(smsParamsDetail) // 对 reject promise已经处理了
+    if (err) {
+      return res.resParamsErr('未知错误')
+    }
+  
+    if (resObj.ok == 1) {
+      // OK - 返回 ID
+      const id = resObj.id 
+      //element: {id:xxxxxx, verify:12345, uphone:17538590302, }
+      module.successArray.push({id, verify})
+      // 8分钟内失效
+      setTimeout(_ => {
+        const i = successArray.findIndex(obj => obj.id === id)
+        if (i >= 0) {
+          module.successArray.splice(i, 1)
+        }
+      }, 8*60*1000)
+      return res.resOk({result: {id}})
+    } else {
+      return res.resParamsErr(resObj.statusObj.Code)
+    }
+  } catch(e) {
+    res.resParamsErr()
+  }}
+}
 
-})
+
+const smsParams = {
+  //模板ID
+  TemplateId: "1006671",
+
+}
+// 发送验证码 - query - uphone字段。 
+r.get('/updateSms', sendOneSmsRouter(smsParams))
+
 
 
 // 修改登录密码     - PUT
-r.put('/updatePwd', async(req, res) => {
+r.put('/pwd', async(req, res) => {
   try {
   //-提交表单: 比对 successArray， 
   //-报错数据库
@@ -108,10 +151,11 @@ r.put('/updatePwd', async(req, res) => {
   }
   
   // 密码通过
-  // 对比successArray
-  let findPhone = successArray.find(obj => obj.id===id && obj.verify===verify)
+  // 短信验证码进行验证。   id -  verify
 
-  if (findPhone) {
+  const authOk = sendOneSmsRouter.authVerifyCode({id, verify})
+
+  if (authOk) {
     // 有值， 保存数据库
     const query = {
       _id: uid
@@ -128,6 +172,7 @@ r.put('/updatePwd', async(req, res) => {
     }
     // OKOK
     res.resOk('修改成功')
+    sendOneSmsRouter.smsOk({id})
   } else {
     // 超时
     res.resBadErr('验证码过期，请重试')
@@ -135,12 +180,32 @@ r.put('/updatePwd', async(req, res) => {
   
   //---------- END
 } catch(e) {
-  res.resParamsErr()
+  res.resParamsErr('代码出错')
+  console.log(e)
 }})
 
 
 // 邮箱绑定
 
+
+// 修改用户名        - PUT
+r.put('/uname',async(req,res) => {try {
+  let uid   = ObjectId(req.user.uid)
+  let uname = req.query.uname.trim()
+  if (!/^\w{4,12}$/.test(uname)) { return res.resParamsErr('用户名4-12位字母数字_') }
+  let infoQuery = { uid }
+  let upData = { 
+    $set: {
+      uname: uname
+    }
+  }
+  let loginQuery = { _id: uid }
+
+  userInfoTable.updateOne
+
+} catch(e) {
+  res.resParamsErr('代码出错,参数不符合')
+}})
 
 
 module.exports = r
