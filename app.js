@@ -1,5 +1,6 @@
 const express         =   require('express')
 const path            =   require('path')
+const compression     =   require('compression')
 
 
 /**
@@ -16,6 +17,7 @@ const profileInfoRouter = require('./router/profileInfoRouter') //个人信息�
 /**
  * 全局中间件引入 
 */
+
 const cors            = require('./utils/cors')
 const bodyParser      = require('body-parser')
 const notFound        = require('./handle/notFound')
@@ -29,11 +31,24 @@ const { resParamsErr, resDataErr, resBadErr, resOk } = require('./handle/respons
 console.clear()
 const PORT = 80
 const app = express()
+const gzipFilter = {
+  filter(req, res) {
+    const contentType = res.getHeader('Content-Type') || ''
+    if (
+      (contentType.indexOf('text/') !==-1) ||
+      (contentType.indexOf('application/json') !== -1) ||
+      (contentType.indexOf('application/javascript') !== -1)
+    ) {
+      return true
+    }
+  }
+}
 
 /**
  * 全局 中间件调用 ----------------
 */
 app.use(cors)
+app.use(compression(gzipFilter))
 app.use('/public', express.static(path.join(__dirname, 'public/')) )
 app.use(bodyParser.json())
 // 封装 res响应体的 msg,code内容
@@ -58,3 +73,4 @@ app.use(notFound)
 app.listen(PORT, _ => {
   console.log(PORT + '端口开启成功');
 })
+

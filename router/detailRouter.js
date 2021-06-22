@@ -49,7 +49,7 @@ try {
 
   let start = +req.query.start
   let end   = +req.query.end
-  let rid = req.query.rid || '60c164a7074200005d003192'
+  let rid = req.query.rid
   if (!start || !end || !rid) {
     return res.resParamsErr()
   }
@@ -74,7 +74,7 @@ try {
   }
 } catch(err) {
   console.log(err)
-  res.resParamsErr()
+  res.resParamsErr('参数有误')
 }})
 
 

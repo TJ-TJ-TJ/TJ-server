@@ -139,8 +139,8 @@ async function isExist(number) {
 */
 r.post('/login', async(req, res, next) => {
 try {
-  let uname = req.body.uname || ''
-  let upwd = req.body.upwd || ''
+  let uname = req.body.uname
+  let upwd = req.body.upwd
   let isRemember = req.body.isremember || true  // 是否记住登录状态
 
   let upwdTest = /(?!^\d+$)(?!^[a-z]+$)(?!^[A-Z]+$)^\w{6,20}$/.test(upwd)
@@ -537,7 +537,7 @@ try {
     {
       const insertInfo = {
         uid: ObjectId(uid),
-        avatar: "https://pic.tujia.com/upload/festatic/app/tujia_useravatar.png",
+        avatar: "//",
         uname,
         sex: 1
       }
@@ -598,18 +598,18 @@ r.post('/sigin2', async(req, res) => {
     }
     const token = generateToken(tokenData)
     res.resOk({result: { token, uid, uname, loginType}})
+
     // 写入 user_info
     {
-      // 写入 user_info
       const insertInfo = {
         uid: ObjectId(uid),
-        avatar: "https://pic.tujia.com/upload/festatic/app/tujia_useravatar.png",
+        avatar: "https://zyailing.xyz/img/defaultHead.png",
         uname,
         sex: 1
       }
       const [err, resObj] = await utils.capture( userInfoTable.insertOne(insertInfo) )
       if (err || resObj.insertedCount === 0) {
-        res.resBadErr('注册失败')
+        // res.resBadErr('注册失败') 响应个锤子
         return
       }
     }
@@ -674,13 +674,12 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
       loginType
     }
     const token = generateToken(tokenData)
-    res.resOk({result: { token, uid, uname,loginType}})    // uname 是随机码. 已经存在. 
     // 写入 user_info
     {
       // 写入 user_info
       const insertInfo = {
         uid: ObjectId(uid),
-        avatar: "https://pic.tujia.com/upload/festatic/app/tujia_useravatar.png",
+        avatar: "https://zyailing.xyz/img/defaultHead.png",
         uname,
         sex: 1
       }
@@ -689,6 +688,9 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
         res.resBadErr('注册失败')
         return
       }
+
+      // OK
+      res.resOk({result: { token, uid, uname,loginType}})    // uname 是随机码. 已经存在. 
     }
   }
 }, faceError)
@@ -757,16 +759,14 @@ try {
   let [err, clientRes] = await utils.capture( client.DescribeCaptchaResult(params) )
   
   if (err) {
-    console.log(err)
     res.resDataErr(err)
     return
   }
   res.resOk(clientRes)
 } catch(err) {
   console.log(err)
-  res.resParamsErr()
-}
-})
+  res.resParamsErr('代码错误')
+}})
 
 
 

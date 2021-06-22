@@ -18,6 +18,31 @@ r.get('/', async(req, res) => {
   res.resOk({result:'ok'})
 })
 
+// ***** async function
+async function isReserve({start, end, rid}) {
+try {
+
+  const where = {
+    "orders.rid": rid,
+    $and: [
+      { "orders.start_time": { $lt:  end} },
+      { "orders.end_time": { $gt: start } }
+    ] 
+    
+  }
+  const ops = { projection: {_id:1} }
+  const [err, resObj] = await utils.capture( userInfoTable.findOne(where, ops) )
+  if (resObj) {
+    // 有值. 说明不能预定
+    return false
+  } else {
+    // 可以预定
+    return true
+  }
+} catch(err) {
+  return false
+}}
+
 
 // 预定 - 需登录
 r.post('/reserve', async(req, res) => {try {
@@ -28,11 +53,15 @@ r.post('/reserve', async(req, res) => {try {
   let date = Date.now()            // 下单时间
   let {title,cover,r_params, start_time, end_time, price, name, phone } = req.body
 
+  const reserve = await isReserve({start, end, rid})
+  if (!reserve) {
+    // 不能预定
+    return res.resBadErr('当前房源已被预定!')
+  }
+
+  // 逻辑有误.   一个用户 可以预定多次相同的房间. 
   let where = {
     uid,
-    "orders.rid": { 
-      $ne: rid
-    }
   }
   let upObj = {
     $addToSet: {
@@ -68,7 +97,7 @@ r.post('/reserve', async(req, res) => {try {
         "orders": { oid, state:0 }
       }
     }
-    utils.capture( userInfoTable.updateOne(where, update) )
+    userInfoTable.updateOne(where, update)
   }, 12*60*1000) // 12分钟
   
 } catch(err) {
@@ -83,7 +112,8 @@ try {
 
   let where = {
     uid,
-    "orders.oid": oid
+    "orders.oid": oid, 
+    "orders.state": 0,
   }
   let upObj = {
     $set: {
@@ -92,7 +122,9 @@ try {
   }
 
   let [err, resObj] = await utils.capture( userInfoTable.updateOne(where, upObj) )
-  if (err || resObj.modifiedCount===0) { return res.resParamsErr() }
+  if (err) { return res.resBadErr('数据库出错') }
+  if (resObj.modifiedCount===0) { return res.resBadErr('支付失败') }
+
 
   // OK
   res.resOk()
@@ -165,7 +197,7 @@ try {
   // OK
   res.resOk({result: {iid} ,msg:'添加成功'})
 } catch(e) {
-  res.resParamsErr()
+  res.resParamsErr('代码出错')
 }})
 
 // 编辑 - 入住人信息
@@ -240,7 +272,12 @@ try {
   // 可遍历
   resArr = resArr[0].orders
   // 可返回
-  if (state === -1 || state === null || state === undefined) {
+  if (
+    state === -1 || 
+    state === null || 
+    state === undefined ||
+    fs.stat === ''
+  ) {
     // 全部订单
     res.resOk({result: resArr})
   }

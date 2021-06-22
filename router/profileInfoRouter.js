@@ -152,7 +152,6 @@ r.put('/pwd', async(req, res) => {
   
   // 密码通过
   // 短信验证码进行验证。   id -  verify
-
   const authOk = sendOneSmsRouter.authVerifyCode({id, verify})
 
   if (authOk) {
@@ -194,14 +193,30 @@ r.put('/uname',async(req,res) => {try {
   let uname = req.query.uname.trim()
   if (!/^\w{4,12}$/.test(uname)) { return res.resParamsErr('用户名4-12位字母数字_') }
   let infoQuery = { uid }
+  let loginQuery = { _id: uid }
   let upData = { 
     $set: {
       uname: uname
     }
   }
-  let loginQuery = { _id: uid }
+  
 
-  userInfoTable.updateOne
+  const promise1 = userInfoTable.updateOne(infoQuery, upData)
+  const promise2 = userLoginTable.updateOne(loginQuery, updateOne)
+  const [err, resArr] = utils.capture( Promise.all([promise1, promise2]) )
+  if (err) {
+    return res.resBadErr('修改失败')
+  }
+
+
+  if ( resArr[0].modifiedCount===0 || 
+    resArr[1].modifiedCount===0 
+  ) {
+    return res.resBadErr('修改失败,请重试')
+  }
+
+  // OK
+  res.resOk('修改成功')
 
 } catch(e) {
   res.resParamsErr('代码出错,参数不符合')
