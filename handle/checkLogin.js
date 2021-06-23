@@ -1,6 +1,13 @@
 const { generateToken, verifyToken } = require('../utils/jwt')
 function checkLogin(req, res, next) {
 try {
+  // 特殊的。 不需要验证的接口
+  if (
+    req.url.startsWith('/v1/profile/emailUpdate') ) 
+  {
+    return next()
+  }
+
   // 需要登录权限的 路由地址
   const urlList = [
     '/v1/profile/',           // 我的相关

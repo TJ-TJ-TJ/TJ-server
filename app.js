@@ -12,7 +12,8 @@ const userRouter      = require('./router/userRouter')
 const searchRouter    = require('./router/searchRouter')
 const orderRouter     = require('./router/orderRouter')
 const profileRouter   = require('./router/profileRouter')
-const profileInfoRouter = require('./router/profileInfoRouter') //个人信息修改
+const profileSafeRouter = require('./router/profileSafeRouter') //安全信息，密码这类
+const profileInfoRouter = require('./router/profileInfoRouter') //安全信息，密码这类
 
 /**
  * 全局中间件引入 
@@ -65,7 +66,7 @@ app.use('/v1/details', detailRouter)
 app.use('/v1/user', userRouter)
 app.use('/v1/search', searchRouter)
 app.use('/v1/order', orderRouter)
-app.use('/v1/profile', profileRouter, profileInfoRouter)
+app.use('/v1/profile', profileRouter, profileSafeRouter, profileInfoRouter)
 
 app.use(notFound)
 

@@ -29,35 +29,6 @@ const transporter = nodemailer.createTransport({
 })
 const mailArray = []  //{id:时间戳, verify}
 
-// 短信验证配置
-const smsClient = tencentcloud.sms.v20210111.Client
-const smsClientOptions = {
-  credential: {
-    secretId: 'AKID53rSpxqU0KRL2Un7MUTEzav2yqTr0uZ6',
-    secretKey: 'fCXeWWJrAF6h7f3EHCuPuFPPAfwxiFXe',
-  },
-  region: "ap-guangzhou",
-  profile: {
-    signMethod: "HmacSHA256",
-    httpProfile: {
-      reqMethod: "POST",
-      reqTimeout: 30,
-      endpoint: "sms.tencentcloudapi.com"
-    },
-  },
-}
-const smsParams = {
-  SmsSdkAppId: "1400511877",
-  SignName: "北京异凡文化传播有限公司",
-  ExtendCode: "",
-  SenderId: "",
-  SessionContext: "",
-  PhoneNumberSet: ["+8617538590302"],
-  TemplateId: "978076",
-  TemplateParamSet: ["3633"],
-}
-const phoneArray = []  // 这样的关系 保存 {id, verify}
-
 
 // 文件接收配置
 const multerOptions = {
@@ -67,6 +38,7 @@ const multerOptions = {
   }
 }
 const upload = multer(multerOptions)
+
 
 // 人脸识别配置
 const APP_ID       =   "23904543"
@@ -564,10 +536,12 @@ r.post('/sigin', async(req,res,next) => { try {
     // 传入uid.  和要写入的字段.  async 没有失败状态
     const avatar = 'https://z3.ax1x.com/2021/06/22/RZOHpR.png'
     let writeInfoRes =  await writeUserInfo({uid, uname, avatar})
-    sendOneSmsRouter.smsOk({id})
+    
     if (writeInfoRes.state) {
       // 写入成功
+      
       res.resOk({result: { token, uid, uname, loginType, avatar}})
+      sendOneSmsRouter.smsOk({id})
       return
     } else {
       // 写入失败
