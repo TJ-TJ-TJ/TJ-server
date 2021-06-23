@@ -505,7 +505,7 @@ async function faceLoginRouter(req,res,next) { try {
 } catch(e) {
   return res.resParamsErr('代码错误'+e.message)
 }}
-r.post('/loginFace', upload.single('face'), faceLoginRouter, loginResult, faceError)
+r.post('/login2', upload.single('face'), faceLoginRouter, loginResult, faceError)
 
 
 
@@ -514,7 +514,7 @@ r.post('/loginFace', upload.single('face'), faceLoginRouter, loginResult, faceEr
 
 
 // 一、注册 -手机号
-r.post('/phoneSigin', async(req,res,next) => { try {
+r.post('/sigin', async(req,res,next) => { try {
   // 手机号和(id) 验证码 
 
   let uphone = req.body.uphone || ''
@@ -761,9 +761,9 @@ r.post('/addface', upload.single('face'), async(req, res) => {
 
 
 // 工具， 发送手机验证码
-r.get('/smsVerifyCode', sendOneSmsRouter({TemplateId:'1009319'}) )
+r.get('/verify', sendOneSmsRouter({TemplateId:'1009319'}) )
 
-// 工具， 发送邮箱验证码
+// 工具， 发送邮箱验证码-
 r.get('/mailVerifyCode', async (req,res) => { try {
   if ( !/^\w+@\w+[.][a-z]+$/.test(mail) ) {
     return res.resParamsErr('邮箱格式错误')
