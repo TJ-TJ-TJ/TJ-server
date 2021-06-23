@@ -15,7 +15,7 @@ try {
     const token = req.headers.token    // token 字符串
     
     // 排除1
-    if (token === undefined || token===null) {
+    if (token === undefined || token===null || token === '') {
       res.send({code:408, msg:'您未登录'})
       return
     }

@@ -131,9 +131,9 @@ try {
 
 
   // OK
-  res.resOk()
+  return res.resOk()
 } catch(err) {
-  res.resParamsErr()
+  res.resParamsErr(err)
 }
 })
 
@@ -313,6 +313,41 @@ try {
   res.resOk({result:[], msg:'未匹配到要求数据'})
 }})
 
+// 订单删除
+r.delete('/delete', async(req, res) => { try {
+  // 传递. oid
+
+  let uid = ObjectId(req.user.uid)
+  let oid = ObjectId(req.body.oid)
+
+  const query = {
+    uid
+  }
+  const upObj = {
+    // 删除数组中某个元素 可以是元素对象
+    $pull: {
+      orders: {
+        oid: oid
+      }
+    }
+  }
+  const [err, resObj] = await utils.capture( userInfoTable.updateOne(query, upObj) )
+  if (err) {
+    return res.resBadErr('服务器遇到错误')
+  }
+
+  if (resObj.modifiedCount === 0) {
+    return res.resBadErr('删除失败')
+  }
+
+  // OK
+  return res.resOk('删除成功')
+
+  //---------------------- END
+} catch(e) {
+  res.resParamsErr(e)
+}})
+
 // 订单详情
 r.get('/detail', async(req, res) => {
 try {
@@ -377,8 +412,12 @@ try {
       "orders.phone": 1,
       "orders.date": 1,
       "orders.state": 1,
+      "orders.start_time": 1,
+      "orders.end_time": 1,
     }
   }
+
+  // 订单状态
 
   const detailPromise = detailTable.aggregate(detailWhere).toArray()
   const userInfoPromise = userInfoTable.findOne({uid}, userWhere)

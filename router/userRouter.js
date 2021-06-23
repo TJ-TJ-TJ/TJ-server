@@ -273,7 +273,6 @@ try {
 // 手机号 - 验证码登录
 r.post('/login1', async(req, res) => {
 try {
-  console.log(req.body, ''.trim)
   let phone = req.body.phone.trim()
   let verify = req.body.verify.trim()
   let id = req.body.id.trim()
@@ -303,6 +302,9 @@ try {
   if (err || !resObj._id) {
     return res.resParamsErr()
   }
+
+  
+
   //开始响应
   {
     let uid = resObj._id.toString()
@@ -315,7 +317,23 @@ try {
       loginType
     }
     const token = generateToken(tokenData)
-    res.resOk({result: { token, uname, uid ,loginType}})
+
+
+    const userInfoWhere = {
+      uid: resObj._id
+    }
+    const userInfoOption = {
+      projection: {
+        _id: 0,
+        avatar: 1
+      }
+    }
+
+    // 查找 -> 
+    let [err2, resObj2] = await utils.capture( userInfoTable.findOne(userInfoOption, userInfoOption) )
+    
+
+    res.resOk({result: { token, uname, uid ,loginType, avatar:resObj2.avatar  }})
     return
   }
 } catch(err) {
@@ -375,7 +393,20 @@ r.post('/loginFace', upload.single('face'), async(req, res) => {
         userId
       }
       const token = generateToken(tokenData)
-      res.resOk({result: { token, uid, uname,isLogin,loginType}})
+      
+      const userInfoWhere = {
+        uid: resObj._id
+      }
+      const userInfoOption = {
+        projection: {
+          _id: 0,
+          avatar: 1
+        }
+      }
+  
+      // 查找 -> 
+      let [err2, resObj2] = await utils.capture( userInfoTable.findOne(userInfoOption, userInfoOption) )
+      res.resOk({result: { token, uid, uname,isLogin,loginType, avatar: resObj2.avatar}})
     } else {
       // 用户没有注册
       return res.resBadErr('未注册')
@@ -385,7 +416,6 @@ r.post('/loginFace', upload.single('face'), async(req, res) => {
     res.resBadErr('未注册')
   }
 }, faceError)
-
 
 
 // 获取验证码
@@ -518,26 +548,26 @@ try {
   if (err || resObj.insertedCount!==1) {
     return res.resDataErr('注册失败, 请重试')
   }
-  console.log('已 存入数据库. ', '------->>>>> if外部', err, resObj)
   
   // 注册成功
   {
     let uid = resObj.insertedId.toString()
     let isLogin = true
     let loginType = 'phone'
+    let avatar = 'https://z3.ax1x.com/2021/06/22/RZOHpR.png'
     const tokenData = {
       uid,
       isLogin,
       loginType
     }
     const token = generateToken(tokenData)
-    res.resOk({result: { token, uid, uname,loginType}})
+    res.resOk({result: { token, uid, uname, loginType, avatar}})
 
     // 写入 user_info
     {
       const insertInfo = {
         uid: ObjectId(uid),
-        avatar: "https://z3.ax1x.com/2021/06/22/RZOHpR.png",
+        avatar,
         uname,
         sex: 1
       }
@@ -612,6 +642,8 @@ r.post('/sigin2', async(req, res) => {
         // res.resBadErr('注册失败') 响应个锤子
         return
       }
+
+      return 
     }
     return
   }
@@ -665,6 +697,7 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
 
     // 可以响应.   uid:数据库用户ID.   userIid:人脸组ID
     let uid = resObj.insertedId.toString()
+    let avatar = 'https://z3.ax1x.com/2021/06/22/RZOHpR.png'
     let isLogin = true
     let loginType = 'face'
     const tokenData = {
@@ -679,7 +712,7 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
       // 写入 user_info
       const insertInfo = {
         uid: ObjectId(uid),
-        avatar: "https://zyailing.xyz/img/defaultHead.png",
+        avatar,
         uname,
         sex: 1
       }
@@ -690,7 +723,7 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
       }
 
       // OK
-      res.resOk({result: { token, uid, uname,loginType}})    // uname 是随机码. 已经存在. 
+      return res.resOk({result: { token, uid, uname,loginType, avatar}})    // uname 是随机码. 已经存在. 
     }
   }
 }, faceError)

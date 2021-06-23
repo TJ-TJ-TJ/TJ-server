@@ -87,17 +87,18 @@ try {
   }
   rid = ObjectId(rid)
 
+  console.log(rid)
+
 
   // 可以查询
-  if (!isReserve({start_time:start, end_time:end, rid})) {
-    return res.resBadErr()
+  if (!await isReserve({start_time:start, end_time:end, rid})) {
+    return res.resBadErr('当前房源已预定')
   }
   // 可以预定
   res.resOk()
   
 } catch(err) {
-  console.log(err)
-  res.resParamsErr('参数有误')
+  res.resParamsErr(err)
 }})
 
 
