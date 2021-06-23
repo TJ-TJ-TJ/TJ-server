@@ -18,7 +18,8 @@ const userLoginTable  = collection('user_login')
 
 /**
  * @params{ Object }, 原生 smsParams
- * query 方式传参.   uphone 字段。   res： { result:id }
+          TemplateId: "1006671",         // 修改密码模板
+ * query 方式传参.   uphone 字段。 短信模板.   res： { result:id }
 */
 function sendOneSmsRouter(smsParams) {
 
@@ -45,7 +46,7 @@ function sendOneSmsRouter(smsParams) {
 
   return async function(req,res,next) {try {
     
-    let uphone    = req.query.uphone
+    let uphone    = req.query.uphone || req.query.phone || req.body.uphone || req.body.phone
         uphone    = uphone.trim()
         
     if (!/^1\d{10}$/.test(uphone)) {
@@ -82,7 +83,7 @@ function sendOneSmsRouter(smsParams) {
     // 发送验证码
     const [err, resObj] = await sendOneSms(smsParamsDetail) // 对 reject promise已经处理了
     if (err) {
-      return res.resParamsErr('未知错误')
+      return res.resParamsErr('未知错误 短信发送失败')
     }
   
     if (resObj.ok == 1) {
@@ -92,17 +93,18 @@ function sendOneSmsRouter(smsParams) {
       module.successArray.push({id, verify})
       // 8分钟内失效
       setTimeout(_ => {
-        const i = successArray.findIndex(obj => obj.id === id)
+        const findId = id
+        const i = module.successArray.findIndex(obj => obj.id===findId)
         if (i >= 0) {
           module.successArray.splice(i, 1)
         }
       }, 8*60*1000)
       return res.resOk({result: {id}})
     } else {
-      return res.resParamsErr(resObj.statusObj.Code)
+      return res.resParamsErr('短信发送失败'+resObj.statusObj.Code)
     }
   } catch(e) {
-    res.resParamsErr()
+    res.resParamsErr(e)
   }}
 }
 

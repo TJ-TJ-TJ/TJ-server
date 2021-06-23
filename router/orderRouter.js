@@ -407,6 +407,7 @@ try {
         }
       },
       _id: 0,
+      "orders.price": 1, //支付价格
       "orders.oid": 1,
       "orders.name": 1,
       "orders.phone": 1,
@@ -418,7 +419,6 @@ try {
   }
 
   // 订单状态
-
   const detailPromise = detailTable.aggregate(detailWhere).toArray()
   const userInfoPromise = userInfoTable.findOne({uid}, userWhere)
   const allPromise = Promise.all([detailPromise, userInfoPromise]) 
@@ -433,6 +433,7 @@ try {
 
   // OK
   res.resOk({result: { detailInfo:resArr[0][0], userInfo: resArr[1].orders[0] }})
+
   // OK
 } catch(err) {
   res.resOk({result:{}, msg:'未找到符合要求的'})

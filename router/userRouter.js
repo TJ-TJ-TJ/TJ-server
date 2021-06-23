@@ -4,6 +4,7 @@ const tencentcloud      = require("tencentcloud-sdk-nodejs")
 const AipFaceClient     = require("baidu-aip-sdk").face
 const nodemailer        = require('nodemailer')
 const multer            = require('multer')
+const { sendOneSms }    = require('../utils/sms') // sendOneSmsRouter 依赖
 const { ObjectId }      = require('bson')
 const { collection }    = require('../utils/mongodb')
 
@@ -12,6 +13,7 @@ const userTable         = collection('user_login')
 const userInfoTable     = collection('user_info')
 const { generateToken, verifyToken } = require('../utils/jwt')
 const r = express.Router()
+
 
 
 
@@ -73,7 +75,7 @@ const SECRET_KEY   =   "LPsvQb2e2Ok6H71ZsTqRoY2gv9U8QAvQ"
 const faceClient = new AipFaceClient(APP_ID, API_KEY, SECRET_KEY);
 const faceError    =   (err, req, res, next) => {
   if (err.code === 'LIMIT_FILE_SIZE') {
-    res.resParamsErr('图片过大')
+    res.resBadErr('图片过大')
   }
 }
 
@@ -93,6 +95,9 @@ const CaptchaConfig = {
     },
   },
 };
+
+
+//  方法-----------------------------
     // 检查手机号|邮箱是否注册 
 async function isExist(number) {
   let uphone = number || ''
@@ -133,7 +138,7 @@ async function isExist(number) {
   }
 }
 
-// 封装 数据库操作
+    // 封装 数据库操作
 async function writeUserLogin(insertData) { try {
   let [err, resObj] = await utils.capture( userTable.insertOne(insertData) )
   if (err) {
@@ -151,7 +156,7 @@ async function writeUserLogin(insertData) { try {
 } catch(e) {
   return { state:false, msg: e.message }
 }}
-
+  // 写入 user_info 表
 async function writeUserInfo(insertData) { try {
   const insertInfo = {
     uid: ObjectId(insertData.uid),
@@ -174,9 +179,102 @@ async function writeUserInfo(insertData) { try {
 }}
 
 
+
 /**
- * 账号密码登录 -uid
+ * @params{ Object },  
+ *        
+          TemplateId: "1006671",         // 修改密码模板
+* query 方式传参.   uphone 字段。 短信模板.   res： { result:id }
 */
+function sendOneSmsRouter(smsParams) {
+
+  // 当前 手机号(ID代替) 和  短信验证码验证，是否匹配
+  sendOneSmsRouter.authVerifyCode = function({id, verify}) {
+    return module.successArray.find(obj => obj.id===id && String(obj.verify)===String(verify))
+  }
+
+  // 删除 successArray中成功的
+  sendOneSmsRouter.smsOk = function({id}) {
+    const i = module.successArray.findIndex(obj => obj.id===id)
+    if (i>=0) {
+      module.successArray.splice(i, 1)
+    }
+  }
+
+
+  //element: 手机号  发送过的队列  - 1分内不能重复发送
+  module.phoneArray || (module.phoneArray = [])  // 可能在一个模块内 调用多次
+
+  //element: {id:xxxxxx, verify:12345, }   成功发送验证码的队列 - 8分钟有效期
+  module.successArray || (module.successArray=[])  // 可能在一个模块内 调用多次
+
+
+  return async function(req,res,next) {try {
+    
+    let uphone    = req.query.uphone || req.query.phone || req.body.uphone || req.body.phone
+        uphone    = uphone.trim()
+        
+    if (!/^1\d{10}$/.test(uphone)) {
+      return res.resParamsErr('手机号格式有误')
+    }
+
+    // 1分钟内， 不能发送多次
+    if (module.phoneArray.find(v => v === uphone)) {
+      // 找到了，重复
+      return res.resBadErr('1分钟内，不能多次发送')
+    }
+  
+    // 1分钟内，不能多次发送
+    module.phoneArray.push(uphone)
+  
+    // 1分钟以后取消
+    setTimeout(_ => {
+      const i = module.phoneArray.findIndex(v => v === uphone)
+      if (i >= 0) {
+        module.phoneArray.splice(i, 1)
+      }
+    }, 60*1000)
+  
+    // 参数通过
+    let verify = Math.random().toString().substr(2, 5)
+    
+    
+    let smsParamsDetail = {
+      PhoneNumberSet: [`+86${uphone}`],
+      TemplateId: "1006671",         // 修改密码模板
+      TemplateParamSet: [verify, 8]  // 验证码， 8分钟
+    }
+    Object.assign(smsParamsDetail, smsParams)
+    // 发送验证码
+    const [err, resObj] = await sendOneSms(smsParamsDetail) // 对 reject promise已经处理了
+    if (err) {
+      return res.resParamsErr('未知错误 短信发送失败')
+    }
+  
+    if (resObj.ok == 1) {
+      // OK - 返回 ID
+      const id = resObj.id 
+      //element: {id:xxxxxx, verify:12345, uphone:17538590302, }
+      module.successArray.push({id, verify})
+      // 8分钟内失效
+      setTimeout(_ => {
+        const findId = id
+        const i = module.successArray.findIndex(obj => obj.id===findId)
+        if (i >= 0) {
+          module.successArray.splice(i, 1)
+        }
+      }, 8*60*1000)
+      return res.resOk({result: {id}})
+    } else {
+      return res.resParamsErr('短信发送失败'+resObj.statusObj.Code)
+    }
+  } catch(e) {
+    res.resParamsErr(e)
+  }}
+}
+
+
+// 一、登录 -账号密码
 r.post('/login', async(req, res, next) => {
 try {
   let uname = req.body.uname
@@ -258,74 +356,40 @@ try {
 })
 
 
-// 手机号 - 验证码登录 - 发送短信
-r.get('/login1_send', async(req, res) => {
-try {
-  let phone = req.query.phone
-  let exist = await isExist(phone)
-  
-  if (exist) {
-    // 存在了 发验证码
-    let verify = Math.random().toString().substr(2, 5)
-    let client = new smsClient(smsClientOptions)
-    smsParams.TemplateId = "1000137"
-    smsParams.PhoneNumberSet = [`+86${phone}`]
-    smsParams.TemplateParamSet = [verify, 2]
-    client.SendSms(smsParams, function(err, response) {
-      // 请求异常返回，打印异常信息
-      if (err) {
-        res.resDataErr('服务器遇到错误, 请重试')
-        return
-      }
-
-      if (response.SendStatusSet[0].Code.toLocaleUpperCase() !== 'OK'.toLocaleUpperCase()) {
-        //短信未发送到 目标手机上
-        return res.resParamsErr('短信发送失败, 请稍后重试.')
-      }
-      
-
-      // 请求正常返回，打印response对象
-      let resId = response.RequestId
-      phoneArray.push({id:resId, verify})
-
-      res.resOk({ id:resId, phone })
-      setTimeout(_ => {
-        // 闭包对象: {resId:}
-        const i = phoneArray.findIndex(v => v.id === resId)
-        if (i >= 0) {
-          phoneArray.splice(i, 1)
-        }
-        client = null
-        verify = null
-      }, 2*60*1000)
-    })
-    return
-  } else {
-    // 不存在. 提示注册
-    res.resBadErr({code:403, msg:'请先注册'})
-    return
+// 二、登录 -根据手机号发送短信
+async function isExistRouter(req,res,next){
+  try {
+    let phone = req.query.phone
+    if (await isExist(phone)) {
+      // 手机存在, 可以发送
+      next()
+    } else {
+      res.resBadErr({code:403, msg:'请先注册'})
+    }
+  } catch(e) {
+    return res.resBadErr({code:202, msg:e.message})
   }
-} catch(err) {
-  res.resParamsErr('代码有误')
 }
-})
+r.get('/login1_send', isExistRouter ,sendOneSmsRouter({TemplateId: '1009319'}) )
 
-// 手机号 - 验证码登录
-r.post('/login1', async(req, res) => {
+
+// 二、登录 -手机号登录
+              // 短信登录验证
+async function smsLoginRouter(req, res,next) {
 try {
   let phone = req.body.phone.trim()
   let verify = req.body.verify.trim()
   let id = req.body.id.trim()
-  if (!verify || !id ||!phone) { return res.resParamsErr() }
+  if (!verify || !id ||!phone) { return res.resParamsErr('参数不符合要求') }
 
-  // 前端已经判断了. 注册过的账号才可以进来
-  const i = phoneArray.findIndex(v => v.id === id && v.verify==verify)
-  if (i === -1) {
-    return res.resParamsErr('时间超时或验证码有误')
-    // 验证码有误
+  let verifyCodeState = sendOneSmsRouter.authVerifyCode({id, verify})
+  
+  // 没有通过验证
+  if (!verifyCodeState) {
+    return res.resBadErr('时间超时或验证码有误')
   }
 
-  // 可以登录了
+  // 查询数据库是否存在 此用户
   const where = {
     uphone: phone
   }
@@ -337,55 +401,62 @@ try {
       uface_id:1,
     }
   }
-
+                                              //user_login
   let [err, resObj] = await utils.capture( userTable.findOne(where, ops) )
-  if (err || !resObj._id) {
-    return res.resParamsErr()
+  if (err) {
+    return res.resBadErr('数据库错误'+err.message)
   }
-
   
-
-  //开始响应
-  {
-    let uid = resObj._id.toString()
-    let uname = resObj.uname
-    let isLogin = true
-    let loginType = 'phone'
-    const tokenData = {
-      uid,
-      isLogin,
-      loginType
-    }
-    const token = generateToken(tokenData)
-
-
-    const userInfoWhere = {
-      uid: resObj._id
-    }
-    const userInfoOption = {
-      projection: {
-        _id: 0,
-        avatar: 1
-      }
-    }
-
-    // 查找 -> 
-    let [err2, resObj2] = await utils.capture( userInfoTable.findOne(userInfoOption, userInfoOption) )
-    
-
-    res.resOk({result: { token, uname, uid ,loginType, avatar:resObj2.avatar  }})
-    return
+  if (!resObj._id) {
+    return res.resBadErr('没有找到符合要求的数据')
   }
+
+  // 验证通过
+  req.uid = resObj._id
+  next()
+
 } catch(err) {
-  res.resParamsErr('代码错误')
-}
-})
+  res.resParamsErr('代码错误'+err.message)
+}}
+              // 响应登录后的数据
+async function loginResult(req,res){try {
+  let uid = req.uid //ObjectId类型
+  let loginType = req.loginType || 'phone'   //需要改动
+
+  const tokenData = {
+    uid: uid.toString(),
+    isLogin: true,
+    loginType
+  }
+  const token = generateToken(tokenData)
+  const userInfoWhere = {
+    uid
+  }
+  const userInfoOption = {
+    projection: {
+      _id: 0,
+      uname: 1,
+      avatar: 1
+    }
+  }
+
+  // 查找
+  let [err2, resObj2] = await utils.capture( userInfoTable.findOne(userInfoWhere, userInfoOption) )
+  res.resOk({result: { token ,loginType,  uid, avatar:resObj2.avatar, uname: resObj2.uname  }})
+  return
+
+}catch(e) {
+  res.resBadErr(e.message)
+}}
+r.post('/login1', smsLoginRouter, loginResult)
 
 
-// 人脸登录
-r.post('/loginFace', upload.single('face'), async(req, res) => {
+// 三、登录 -人脸登录
+              // 人脸登录验证逻辑
+async function faceLoginRouter(req,res,next) { try {
+
   if (!req.file) {
-    return res.resParamsErr()
+    return res.resParamsErr('face参数缺少')
   }
 
   let base64 = req.file.buffer.toString('base64')
@@ -397,170 +468,55 @@ r.post('/loginFace', upload.single('face'), async(req, res) => {
   if (err) {
     return res.resParamsErr()
   }
-  /**
-   * 存在人脸
-   * 分支语句
-  */
-  if (faceRes.result) {
-    let userObj = faceRes.result.user_list[0]
 
-    if (userObj.score >= 80) {
+  // 没有人脸
+  if (!faceRes.result) {
+    
+    return res.resBadErr('未注册')
+  }
 
-      let where = { uface_id: userObj.user_id }
-      // 可以响应.   uid:数据库用户ID.   userIid:人脸组ID
-      let [err, resObj] = await utils.capture( userTable.findOne(where) )
+  // 继续判断
+  let userObj = faceRes.result.user_list[0]
+  if (userObj.score < 80) {
+    return res.resBadErr('人脸不清晰,请重试')
+  }
+
+  // 查数据库
+  {
+    let where = { uface_id: userObj.user_id }
+    // 可以响应.   uid:数据库用户ID.   userIid:人脸组ID
+    let [err2, resObj2] = await utils.capture( userTable.findOne(where) )
 
 
-      if (err) {
-        res.resDataErr('遇到错误')
-        return 
-      }
-      if (!resObj) {
-        console.log(err, resObj)
-        return res.resBadErr('未注册')
-      }
-
-      // OK
-      let uid = resObj._id.toString()
-      let userId = resObj.uface_id
-      let isLogin = true
-      let loginType = 'face'
-      let uname = resObj.uname
-      const tokenData = {
-        uid,
-        isLogin,
-        loginType,
-        userId
-      }
-      const token = generateToken(tokenData)
-      
-      const userInfoWhere = {
-        uid: resObj._id
-      }
-      const userInfoOption = {
-        projection: {
-          _id: 0,
-          avatar: 1
-        }
-      }
-  
-      // 查找 -> 
-      let [err2, resObj2] = await utils.capture( userInfoTable.findOne(userInfoOption, userInfoOption) )
-      res.resOk({result: { token, uid, uname,isLogin,loginType, avatar: resObj2.avatar}})
-    } else {
-      // 用户没有注册
+    if (err2) {
+      return res.resDataErr('遇到错误')
+    }
+    if (!resObj2) {
       return res.resBadErr('未注册')
     }
-  } else {
-    // 不存在人脸
-    res.resBadErr('未注册')
-  }
-}, faceError)
 
-
-// 获取验证码
-// 响应请求唯一ID
-r.get('/verify', async(req, res, next) => {
-  let phone = req.query.phone
-  let mail = req.query.mail
-  if (!/^1\d{10}$/.test(phone)) {
-    return res.resParamsErr('手机号格式错误')
+    // OK
+    req.uid = resObj2._id //ObjectId  类型
+    req.loginType = 'face'
+    next()
   }
 
-  let exist = await isExist(phone)
-  if (exist) {
-    // 存在
-    res.resBadErr({code:403, msg:'已经存在'})
-    return
-  } else {
-    // 可注册
-    let client = new smsClient({
-      credential: {
-        secretId: 'AKID53rSpxqU0KRL2Un7MUTEzav2yqTr0uZ6',
-        secretKey: 'fCXeWWJrAF6h7f3EHCuPuFPPAfwxiFXe',
-      },
-      region: "ap-guangzhou",
-      profile: {
-        signMethod: "HmacSHA256",
-        httpProfile: {
-          reqMethod: "POST",
-          reqTimeout: 30,
-          endpoint: "sms.tencentcloudapi.com"
-        },
-      },
-    })
-    let verify = Math.random().toString().substr(2, 5)
-    smsParams.PhoneNumberSet = [`+86${phone}`]
-    smsParams.TemplateId = "978076"
-    smsParams.TemplateParamSet = [verify, 2]  //
-    
-    client.SendSms(smsParams, function(err, response) {
-      if (err) {
-        res.resDataErr('服务器遇到错误, 请重试')
-        return
-      }
-  
-      // 请求正常返回，打印response对象
-      let resId = response.RequestId
-  
-      phoneArray.push({id:resId, verify})
-      res.resOk({ id:resId, phone  })
-      
-      setTimeout(_ => {
-        // 闭包对象: {resId:}
-        const i = phoneArray.findIndex(v => v.id === resId)
-        if (i >= 0) {
-          phoneArray.splice(i, 1)
-        }
-        client = null
-        verify = null
-      }, 2*60*1000)
-    })
+  // END
+} catch(e) {
+  return res.resParamsErr('代码错误'+e.message)
+}}
+r.post('/loginFace', upload.single('face'), faceLoginRouter, loginResult, faceError)
 
-    return
-  }
 
-  if ( /^\w+@\w+[.][a-z]+$/.test(mail) ) {
-    let verify = Math.random().toString().substr(2, 5)
-    console.log(verify)
-    
-    transporter.sendMail(
-    {
-      from: 'gaowujie2019@163.com', // 发送人邮箱   必须要和 对应邮箱一直的授权码
-      to: mail, // 接收人邮箱，多个使用数组或用逗号隔开
-      subject: '云订餐注册', // 主题
-      html: `您的验证码是: <b>${verify}<b>, 20分钟内有效.`, // 邮件正文 可以为 HTML 或者 text 
-    },
-    (err, info) => {
-      console.log('发送了........')
-      if (err) {
-        
-        return res.resDataErr(err)
-      }
-      // console.log(info)
-      let resId = info.messageId
-      mailArray.push({ id:resId, verify })
 
-      res.resOk({ id:resId, verify, msg:'20分钟内有效' })
-      setTimeout(_ => {
-        // 形成闭包对象 { resId: xxx }
-        let resIndex = mailArray.findIndex(v => v.id === resId)
-        if (resId >= 0) {
-          mailArray.splice(resIndex, 1)
-        }
-      }, 20*60*1000)//20分钟
-    })
-    return
-  }
 
-  return res.resParamsErr()
-})
 
-// 手机号注册
-r.post('/sigin', async(req, res) => {
-try {
 
-  // 手机号注册.   只需要 随机生成一个 用户名即可.  数据库只需要放入 uphone uname
+
+// 一、注册 -手机号
+r.post('/phoneSigin', async(req,res,next) => { try {
+  // 手机号和(id) 验证码 
+
   let uphone = req.body.uphone || ''
   let id = req.body.id || ''
   let newVerify = req.body.newVerify || ''
@@ -571,22 +527,25 @@ try {
     return res.resParamsErr('手机号格式错误')
   }
 
-  // 查找匹配的 验证码
-  let resIndex = phoneArray.findIndex(v => v.id==id && v.verify==newVerify)
-  if (resIndex === -1) {
+  // 当前验证码 和 手机号是否匹配
+  if (
+    !sendOneSmsRouter.authVerifyCode({id, verify:newVerify}) ) {
     return res.resParamsErr('验证码错误或超时')
   }
 
+
   // 验证码正确. 且未超时. 可以开启注册
-  let uname = Math.random().toString(26).substr(2, 7)
+  let uname = Math.random().toString(26).substr(2, 8)
   let insertData = { uname, uphone }
+
+  // 写入 user_login
   let writeUserLoginRes = await writeUserLogin(insertData)
   if ( !writeUserLoginRes.state ) {
     // 写入失败
     return res.resBadErr( writeUserLoginRes.msg )
   }
-  
-  // 注册成功
+
+  // 写入 user_info
   {
     let uid = writeUserLoginRes.result.insertedId.toString()
     let isLogin = true
@@ -613,12 +572,12 @@ try {
     }
   }
 
-  // END --------
+  // END-----
 } catch(e) {
-  res.resParamsErr(e.message)
+  res.resBadErr('代码错误'+e.message)
 }})
 
-// 邮箱注册
+// 二、注册 -邮箱暂时废弃
 r.post('/sigin2', async(req, res) => {
   let umail = req.body.umail || ''
   let uname = req.body.uname || ''
@@ -684,7 +643,7 @@ r.post('/sigin2', async(req, res) => {
   }
 })
 
-// 人脸注册
+// 三、注册 -人脸注册
 r.post('/sigin3',upload.single('face'), async(req, res) => {
   if (!req.file) {
     res.resParamsErr()
@@ -764,6 +723,13 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
 }, faceError)
 
 
+
+
+// 退出登录
+r.get('/quit', (req, res) => {
+  res.resOk('退出成功')
+})
+
 // 添加人脸
 r.post('/addface', upload.single('face'), async(req, res) => {
   if (!req.file) {
@@ -789,23 +755,66 @@ r.post('/addface', upload.single('face'), async(req, res) => {
 }, faceError)
 
 
-// 退出登录
-r.get('/quit', (req, res) => {
-  res.resOk('退出成功')
-})
 
-// 手机号是否可注册 / 邮箱是否可注册
+
+
+
+
+// 工具， 发送手机验证码
+r.get('/smsVerifyCode', sendOneSmsRouter({TemplateId:'1009319'}) )
+
+// 工具， 发送邮箱验证码
+r.get('/mailVerifyCode', async (req,res) => { try {
+  if ( !/^\w+@\w+[.][a-z]+$/.test(mail) ) {
+    return res.resParamsErr('邮箱格式错误')
+  }
+
+  // 格式正确. 
+
+  let verify = Math.random().toString().substr(2, 5)
+  
+  transporter.sendMail(
+  {
+    from: 'gaowujie2019@163.com', // 发送人邮箱   必须要和 对应邮箱一直的授权码
+    to: mail, // 接收人邮箱，多个使用数组或用逗号隔开
+    subject: '云订餐注册', // 主题
+    html: `您的验证码是: <b>${verify}<b>, 20分钟内有效.`, // 邮件正文 可以为 HTML 或者 text 
+  },
+  (err, info) => {
+    if (err) {
+      return res.resDataErr(err)
+    }
+    // console.log(info)
+    let resId = info.messageId
+    mailArray.push({ id:resId, verify })
+
+    res.resOk({ id:resId, verify, msg:'20分钟内有效' })
+    setTimeout(_ => {
+      // 形成闭包对象 { resId: xxx }
+      let resIndex = mailArray.findIndex(v => v.id === resId)
+      if (resId >= 0) {
+        mailArray.splice(resIndex, 1)
+      }
+    }, 20*60*1000)//20分钟
+  })
+
+  //END ------
+} catch(e) {
+  res.resBadErr('代码错误'+e.message)
+}})
+
+// 工具， 手机号是否注册
 r.get('/exist', async (req, res, next) => {
   let exist =  await isExist(req.query.uphone)
   if (exist) {
-    // 存在.不可注册
+    // 存在. 已注册。
     res.resBadErr()
   } else {
     res.resOk()
   }
 })
 
-// 图形验证 - 拦截恶意注册
+// 工具， 图形验证 - 拦截恶意注册
 r.get('/yzm', async(req, res) => {
 try {
   let ticket = req.query.ticket
@@ -835,7 +844,6 @@ try {
   console.log(err)
   res.resParamsErr('代码错误')
 }})
-
 
 
 module.exports = r
