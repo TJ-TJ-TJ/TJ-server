@@ -133,6 +133,46 @@ async function isExist(number) {
   }
 }
 
+// 封装 数据库操作
+async function writeUserLogin(insertData) { try {
+  let [err, resObj] = await utils.capture( userTable.insertOne(insertData) )
+  if (err) {
+    return {state:false, msg:err.message} //写入失败
+  }
+
+  if (resObj.insertedCount===0) {
+    return {state:false, msg:'没有报错,但是写入user_login 失败'} //写入失败
+  }
+
+  // Ok
+  return {state:true, msg:'ok', result: resObj} // 写入成功
+
+  //END-------
+} catch(e) {
+  return { state:false, msg: e.message }
+}}
+
+async function writeUserInfo(insertData) { try {
+  const insertInfo = {
+    uid: ObjectId(insertData.uid),
+    avatar: insertData.avatar,
+    uname: insertData.uname,
+    sex: 1
+  }
+  const [err, resObj] = await utils.capture( userInfoTable.insertOne(insertInfo) )
+  if (err) {
+    return { state:false, msg:err.message}
+  } 
+  if (resObj.insertedCount === 0) {
+    return { state:false, msg:'没有报错,但是user_info集合没有写入' }
+  }
+
+  return {state:true, result: resObj}
+  // END -------------------------------
+} catch(e) {
+  return {state:false, msg:e.message}
+}}
+
 
 /**
  * 账号密码登录 -uid
@@ -528,7 +568,7 @@ try {
   // 参数拦截
   let uphoneTest = /^1\d{10}$/.test(uphone)
   if ( !uphoneTest ) {
-    return res.resParamsErr()
+    return res.resParamsErr('手机号格式错误')
   }
 
   // 查找匹配的 验证码
@@ -540,48 +580,43 @@ try {
   // 验证码正确. 且未超时. 可以开启注册
   let uname = Math.random().toString(26).substr(2, 7)
   let insertData = { uname, uphone }
-  let [err, resObj] = await utils.capture( userTable.insertOne(insertData) )
-
-  
-  
-  // 非法的操作.
-  if (err || resObj.insertedCount!==1) {
-    return res.resDataErr('注册失败, 请重试')
+  let writeUserLoginRes = await writeUserLogin(insertData)
+  if ( !writeUserLoginRes.state ) {
+    // 写入失败
+    return res.resBadErr( writeUserLoginRes.msg )
   }
   
   // 注册成功
   {
-    let uid = resObj.insertedId.toString()
+    let uid = writeUserLoginRes.result.insertedId.toString()
     let isLogin = true
     let loginType = 'phone'
-    let avatar = 'https://z3.ax1x.com/2021/06/22/RZOHpR.png'
+    
     const tokenData = {
       uid,
       isLogin,
       loginType
     }
     const token = generateToken(tokenData)
-    res.resOk({result: { token, uid, uname, loginType, avatar}})
+    
 
     // 写入 user_info
-    {
-      const insertInfo = {
-        uid: ObjectId(uid),
-        avatar,
-        uname,
-        sex: 1
-      }
-      const [err, resObj] = await utils.capture( userInfoTable.insertOne(insertInfo) )
-      if (err || resObj.insertedCount === 0) {
-        // res.resBadErr('注册失败')  该死的代码  响应个锤子.
-        return
-      }
+    // 传入uid.  和要写入的字段.  async 没有失败状态
+    const avatar = 'https://z3.ax1x.com/2021/06/22/RZOHpR.png'
+    let writeInfoRes =  await writeUserInfo({uid, uname, avatar})
+    if (writeInfoRes.state) {
+      // 写入成功
+      return res.resOk({result: { token, uid, uname, loginType, avatar}})
+    } else {
+      // 写入失败
+      return res.resBadErr(writeInfoRes.msg)
     }
   }
+
+  // END --------
 } catch(e) {
-  res.resParamsErr('代码出错')
-}
-})
+  res.resParamsErr(e.message)
+}})
 
 // 邮箱注册
 r.post('/sigin2', async(req, res) => {
