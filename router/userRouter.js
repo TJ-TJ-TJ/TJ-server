@@ -413,6 +413,7 @@ try {
 
   // 验证通过
   req.uid = resObj._id
+  sendOneSmsRouter.smsOk({id})
   next()
 
 } catch(err) {
@@ -563,14 +564,18 @@ r.post('/sigin', async(req,res,next) => { try {
     // 传入uid.  和要写入的字段.  async 没有失败状态
     const avatar = 'https://z3.ax1x.com/2021/06/22/RZOHpR.png'
     let writeInfoRes =  await writeUserInfo({uid, uname, avatar})
+    sendOneSmsRouter.smsOk({id})
     if (writeInfoRes.state) {
       // 写入成功
-      return res.resOk({result: { token, uid, uname, loginType, avatar}})
+      res.resOk({result: { token, uid, uname, loginType, avatar}})
+      return
     } else {
       // 写入失败
       return res.resBadErr(writeInfoRes.msg)
     }
+    
   }
+
 
   // END-----
 } catch(e) {
@@ -803,7 +808,7 @@ r.get('/mailVerifyCode', async (req,res) => { try {
   res.resBadErr('代码错误'+e.message)
 }})
 
-// 工具， 手机号是否注册
+// 工具， 手机号是否注册 | 支持邮箱号
 r.get('/exist', async (req, res, next) => {
   let exist =  await isExist(req.query.uphone)
   if (exist) {

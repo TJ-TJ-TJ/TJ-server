@@ -1,9 +1,10 @@
-// 账号安全 - 个人信息
+// 账号安全页面
 const express           = require('express')
+const nodemailer        = require('nodemailer')
 const utils             = require('../utils/utils')
 const { collection }    = require('../utils/mongodb')
 const { ObjectId }      = require('bson')
-const { sendOneSms }    = require('../utils/sms')
+const { sendOneSms }    = require('../utils/sms') // sendOneSmsRouter 依赖
 const r = express.Router()
 /**
  * 依赖
@@ -11,21 +12,29 @@ const r = express.Router()
 const userInfoTable   = collection('user_info')
 const userLoginTable  = collection('user_login')
 
+// 邮箱配置
+const transporter = nodemailer.createTransport({
+  host: 'smtp.163.com', // 这是腾讯的邮箱 host
+  port: 465, // smtp 端口
+  secureConnection: true,
+  auth: {
+    user: 'gaowujie2019', // 发送邮件的邮箱名
+    pass: 'PMRYKCAMVGYXCPJS', // 邮箱的授权码，也可以使用邮箱登陆密码
+  },
+})
+const mailArray = []  //{id:时间戳, verify}
 
 
-// 个人资料
-// r.get('/info')
 
 /**
  * @params{ Object }, 原生 smsParams
-          TemplateId: "1006671",         // 修改密码模板
- * query 方式传参.   uphone 字段。 短信模板.   res： { result:id }
+          TemplateId: "1009319", 默认        // 通用模板
 */
 function sendOneSmsRouter(smsParams) {
 
   // 当前 手机号(ID代替) 和  短信验证码验证，是否匹配
   sendOneSmsRouter.authVerifyCode = function({id, verify}) {
-    return module.successArray.find(obj => obj.id===id && obj.verify===verify)
+    return module.successArray.find(obj => obj.id===id && String(obj.verify)=== String(verify) )
   }
 
   // 删除 successArray中成功的
@@ -76,7 +85,7 @@ function sendOneSmsRouter(smsParams) {
     
     let smsParamsDetail = {
       PhoneNumberSet: [`+86${uphone}`],
-      TemplateId: "1006671",         // 修改密码模板
+      TemplateId: "1009319",         // 通用默认模板
       TemplateParamSet: [verify, 8]  // 验证码， 8分钟
     }
     Object.assign(smsParamsDetail, smsParams)
@@ -109,87 +118,12 @@ function sendOneSmsRouter(smsParams) {
 }
 
 
-const smsParams = {
-  //模板ID
-  TemplateId: "1006671",
-
-}
+// 零、公共的
 // 发送验证码 - query - uphone字段。 
-r.get('/updateSms', sendOneSmsRouter(smsParams))
+r.get('/sendSms', sendOneSmsRouter())
 
 
-
-// 修改登录密码     - PUT
-r.put('/pwd', async(req, res) => {
-  try {
-  //-提交表单: 比对 successArray， 
-  //-报错数据库
-  //-返回本次提交结果
-  
-  let uid     = ObjectId(req.user.uid)
-  let upwd    = req.body.upwd.trim()
-  let id      = req.body.id.trim()
-  let verify  = req.body.verify.trim()
-  
-  
-  if (upwd < 6 || upwd > 18) {
-    return res.resParamsErr('密码长度6-18位')
-  }
-  // 全是小写字符
-  if ( /^[a-z]{6,18}$/.test(upwd) ) {
-    return res.resParamsErr('不能全是小写字母')
-  }
-  // 全是大写字母
-  if ( /^[A-Z]{6,18}$/.test(upwd) ) {
-    return res.resParamsErr('不能全是大写字母')
-  }
-  // 全是数字
-  if ( /^[0-9]{6,18}$/.test(upwd) ) {
-    return res.resParamsErr('不能全是数字')
-  }
-  // 包含特殊字符
-  if (!/^[0-9a-zA-Z._]{6,18}$/.test(upwd)) {
-    return res.resParamsErr('不能包含特殊字符')
-  }
-  
-  // 密码通过
-  // 短信验证码进行验证。   id -  verify
-  const authOk = sendOneSmsRouter.authVerifyCode({id, verify})
-
-  if (authOk) {
-    // 有值， 保存数据库
-    const query = {
-      _id: uid
-    }
-    const upObj = {
-      $set: {
-        upwd
-      }
-    }
-
-    const [err, resObj] = await utils.capture( userLoginTable.updateOne(query, upObj) )
-    if (err || resObj.modified===0) {
-      return res.resBadErr('修改失败')
-    }
-    // OKOK
-    res.resOk('修改成功')
-    sendOneSmsRouter.smsOk({id})
-  } else {
-    // 超时
-    res.resBadErr('验证码过期，请重试')
-  }
-  
-  //---------- END
-} catch(e) {
-  res.resParamsErr('代码出错')
-  console.log(e)
-}})
-
-
-// 邮箱绑定
-
-
-// 修改用户名        - PUT
+// 一、修改用户名        - PUT
 r.put('/uname',async(req,res) => {try {
   let uid   = ObjectId(req.user.uid)
   let uname = req.query.uname.trim()
@@ -204,8 +138,8 @@ r.put('/uname',async(req,res) => {try {
   
 
   const promise1 = userInfoTable.updateOne(infoQuery, upData)
-  const promise2 = userLoginTable.updateOne(loginQuery, updateOne)
-  const [err, resArr] = utils.capture( Promise.all([promise1, promise2]) )
+  const promise2 = userLoginTable.updateOne(loginQuery, upData)
+  const [err, resArr] = await utils.capture( Promise.all([promise1, promise2]) )
   if (err) {
     return res.resBadErr('修改失败')
   }
@@ -214,15 +148,229 @@ r.put('/uname',async(req,res) => {try {
   if ( resArr[0].modifiedCount===0 || 
     resArr[1].modifiedCount===0 
   ) {
-    return res.resBadErr('修改失败,请重试')
+    return res.resBadErr('请勿重复修改')
   }
 
   // OK
   res.resOk('修改成功')
 
 } catch(e) {
-  res.resParamsErr('代码出错,参数不符合')
+  res.resParamsErr('代码出错,参数不符合'+e.message)
 }})
 
+
+
+
+// 二、修改手机号 开始修改       - PUT
+r.put('/phone', async(req,res) => { try {
+  // 携带 id , verify， newPhone
+  let uid = ObjectId(req.user.uid)
+  let {id, verify, newPhone} = req.body
+  if (
+    /^1\d{10}$/.test(newPhone) )
+  {
+    return res.resParamsErr('手机号格式有误')
+  }
+
+
+  // id 和 验证码 是否匹配
+  if (
+    !sendOneSmsRouter.authVerifyCode({id, verify}) ){
+    return res.resBadErr('验证码错误')
+  }
+
+  // 更改数据库
+  const query = { _id: uid }
+  const update = { $set: { uphone: newPhone} }
+
+  let [err, resObj] = await utils.capture( userLoginTable.updateOne(query, update) )
+  if (err) {
+    return res.resBadErr('修改失败')
+  }
+
+  if (resObj.modifiedCount===0) {
+    return res.resBadErr('不要重复点击')
+  }
+
+  // Ok
+  sendOneSmsRouter.smsOk({id}) //删除
+  return res.resOk()
+
+  // END___------
+} catch(e) {
+  res.resParamsErr('代码有误'+e)
+}})
+// 发送短信验证码
+
+
+
+// 三、绑定邮箱                 -  PUT
+r.put('/email', async(req,res) => { try {
+  let _id = ObjectId(req.user.uid)
+  let { newEmail, id, verify } = req.body
+  if ( !/^\w+@\w+[.][a-z]+$/.test(newEmail) ) {
+    return res.resParamsErr('邮箱格式错误')
+  }
+
+  // 格式正确 - 验证 密码和id 是否匹配
+  let resIndex = mailArray.findIndex(v => String(v.id)===String(id) && String(v.verify)===String(verify) && v.email===newEmail)
+  if (resIndex === -1) {
+    // 验证码错误
+    return res.resParamsErr('验证码错误')
+  }
+
+  // OK 写入数据库
+  const query = {_id}
+  const update = { $set: { umail: newEmail} }
+  let [err, resObj] = await utils.capture( userLoginTable.updateOne(query, update) )
+  if (err) {
+    return res.resBadErr('修改失败')
+  }
+
+  if (resObj.modifiedCount===0) {
+    return res.resBadErr('请更换，已重复')
+  }
+
+  // Ok
+  let successI = mailArray.findIndex(v => String(v.id)===String(id))
+  if (successI >= 0) {
+    mailArray.splice(successI, 1)
+  }
+  return res.resOk()
+
+  //END-------
+} catch(e) {
+  res.resParamsErr('代码错误'+e.message)
+}})
+
+r.get('/sendEmail', (req,res) => {
+  let email = req.query.email
+  if ( !/^\w+@\w+[.][a-z]+$/.test(email) ) {
+    return res.resParamsErr('邮箱格式错误')
+  }
+  let verify = Math.random().toString().substr(2, 5)
+  
+  transporter.sendMail(
+  {
+    from: 'gaowujie2019@163.com', // 发送人邮箱   必须要和 对应邮箱一直的授权码
+    to: email, // 接收人邮箱，多个使用数组或用逗号隔开
+    subject: '途家北京版。', // 主题
+    html: `您正在绑定邮箱，您的验证码是: <b>${verify}<b>, 20分钟内有效.`, // 邮件正文 可以为 HTML 或者 text 
+  },
+  (err, info) => {
+    if (err) {
+      return res.resDataErr(err)
+    }
+  
+    let resId = info.messageId
+    mailArray.push({ id:resId, verify, email })
+
+    res.resOk({result: { id: resId }})
+    setTimeout(_ => {
+      // 形成闭包对象 { resId: xxx }
+      let resIndex = mailArray.findIndex(v => String(v.id) === String(resId) )
+      if (resId >= 0) {
+        mailArray.splice(resIndex, 1)
+      }
+    }, 20*60*1000)//20分钟
+  })
+})
+
+
+
+// 四、修改密码
+r.put('/pwd', async(req, res) => {
+  try {
+  //-提交表单: 比对 successArray， 
+  //-报错数据库
+  //-返回本次提交结果
+  
+  let uid     = ObjectId(req.user.uid)
+  let newPwd  = req.body.newPwd.trim()
+  let id      = req.body.id.trim()
+  let verify  = req.body.verify.trim()
+  
+  
+  if (newPwd.length < 6 || newPwd.length > 18) {
+    return res.resParamsErr('密码长度6-18位')
+  }
+  // 全是小写字符
+  if ( /^[a-z]{6,18}$/.test(newPwd) ) {
+    return res.resParamsErr('密码不能全是小写字母')
+  }
+  // 全是大写字母
+  if ( /^[A-Z]{6,18}$/.test(newPwd) ) {
+    return res.resParamsErr('密码不能全是大写字母')
+  }
+  // 全是数字
+  if ( /^[0-9]{6,18}$/.test(newPwd) ) {
+    return res.resParamsErr('密码不能全是数字')
+  }
+  if ( /^[.]{6,18}$/.test(newPwd) ) {
+    return res.resParamsErr('密码不能全是.')
+  }
+  if ( /^_{6,18}$/.test(newPwd) ) {
+    return res.resParamsErr('密码不能全是_')
+  }
+  // 包含特殊字符
+  if (/[^0-9a-zA-Z._]/.test(newPwd)) {
+    return res.resParamsErr('密码不能包含特殊字符')
+  }
+  
+  // 密码通过
+  // 短信验证码进行验证。   id -  verify
+  const authOk = sendOneSmsRouter.authVerifyCode({id, verify})
+  if ( !authOk ) {
+    // 超时
+    return res.resBadErr('验证码过期，请重试')   
+  }
+
+  
+  // 验证码OK
+  // 有值， 保存数据库
+  const query = {_id: uid}
+  const upObj = {$set: { upwd:newPwd }}
+
+  const [err, resObj] = await utils.capture( userLoginTable.updateOne(query, upObj) )
+  if (err || resObj.modifiedCount===0) {
+    return res.resBadErr('修改失败，不要重复修改')
+  } else {
+    // OKOK
+    res.resOk('修改成功')
+    sendOneSmsRouter.smsOk({id})
+  }
+  
+  
+  
+  //---------- END
+} catch(e) {
+  res.resParamsErr('代码出错'+e.message)
+}})
+// 发送验证码
+
+
+// 五、注销账号
+r.delete('/user', async(req, res) => { try{
+  let _id = ObjectId(req.user.uid)
+  
+  // 谨慎操作。 暂时关闭
+  return res.resOk('危险操作暂时关闭')
+
+  const [err,resObj] = await utils.capture( userLoginTable.deleteOne({_id}) )
+  const [err2, resObj2] = await utils.capture( userInfoTable.deleteOne({uid:_id}) )
+  if (err || err2) {
+    return res.resBadErr('数据库遇到错误'+err.message+err2.message)
+  }
+  if (resObj.deletedCount === 0 || resObj2.deletedCount === 0) {
+    return res.resBadErr('删除失败，稍后重试, 当前账号可能不存在')
+  }
+
+  // delete ok
+  return res.resOk('删除OK')
+
+  // END-----------------
+} catch(e) {
+  res.resParamsErr('代码出错'+e.message)
+}})
 
 module.exports = r
