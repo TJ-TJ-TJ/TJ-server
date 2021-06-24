@@ -173,7 +173,7 @@ r.put('/uname',async(req,res) => {try {
   const promise2 = userLoginTable.updateOne(loginQuery, upData)
   const [err, resArr] = await utils.capture( Promise.all([promise1, promise2]) )
   if (err) {
-    return res.resBadErr('修改失败')
+    return res.resBadErr('数据库出错'+err.message)
   }
 
 

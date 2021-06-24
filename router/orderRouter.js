@@ -3,7 +3,6 @@ const utils             = require('../utils/utils')
 const { collection }    = require('../utils/mongodb')
 const path              = require('path')
 const { ObjectId }      = require('bson')
-const fs = require('fs')
 const r = express.Router()
 
 
@@ -86,7 +85,8 @@ r.post('/reserve', async(req, res) => {try {
   }
   
   let [err, resObj] = await utils.capture( userInfoTable.updateOne(where, upObj) )
-  if (err || resObj.modifiedCount!==1) { return res.resParamsErr(err) }
+  if (err) { return res.resParamsErr(err.message) }
+  if (resObj.modifiedCount === 0) { return res.resBadErr('预定失败,请刷新重试') }
 
   // OK
   res.resOk({result: {oid, date}})
@@ -105,7 +105,7 @@ r.post('/reserve', async(req, res) => {try {
   }, 12*60*1000) // 12分钟
   
 } catch(err) {
-  res.resParamsErr(err)
+  res.resParamsErr('代码出错' + err.message)
 }})
 
 // 支付 - 需登录
@@ -126,16 +126,15 @@ try {
   }
 
   let [err, resObj] = await utils.capture( userInfoTable.updateOne(where, upObj) )
-  if (err) { return res.resBadErr('数据库出错') }
+  if (err) { return res.resBadErr('数据库出错'+err.message) }
   if (resObj.modifiedCount===0) { return res.resBadErr('您想重复支付吗') }
 
 
   // OK
   return res.resOk()
 } catch(err) {
-  res.resParamsErr(err)
-}
-})
+  res.resParamsErr('代码出错'+err.message)
+}})
 
 // 获取 - 入住人信息数组
 r.get('/resideInfo', async(req, res)=> {
@@ -159,8 +158,10 @@ try {
   if (err || !resObj) { return res.resParamsErr({result:[]}) }
 
   res.resOk({result: resObj.info || []})
+
+  // END -------
 } catch(err) {
-  res.resOk({result:[], msg:'未找到符合要求数据'})
+  res.resOk({result:[], msg:err.message})
 }})
 
 // 添加 - 入住人信息.
@@ -192,21 +193,22 @@ try {
   }
 
   const [err, resObj] = await utils.capture( userInfoTable.updateOne(query, insertData) )
-  if (err || resObj.modifiedCount===0) {
-    // 有误
-    res.resParamsErr()
-    return
+  if (err) {
+    return res.resParamsErr('数据库错误'+err.message)
+  }
+
+  if (resObj.modifiedCount===0) {
+    return res.resBadErr('没有添加成功.')
   }
 
   // OK
   res.resOk({result: {iid} ,msg:'添加成功'})
 } catch(e) {
-  res.resParamsErr('代码出错')
+  res.resParamsErr('代码出错'+e.message)
 }})
 
 // 编辑 - 入住人信息
-r.put('/putInfo', async(req, res) => {
-try {
+r.put('/putInfo', async(req, res) => { try {
   let uid = ObjectId(req.user.uid) //用户UID
   
   let { newName, newId, iId  } = req.body
@@ -228,14 +230,17 @@ try {
   }
 
   const [err, resObj] = await utils.capture( userInfoTable.updateOne(query, insertData) )
-  if (err || resObj.modifiedCount===0) {
-    return res.resParamsErr()
+  if (err) {
+    return res.resParamsErr('数据库错误'+err.message)
+  }
+  if (resObj.modifiedCount===0) {
+    return res.resBadErr('没有匹配项')
   }
 
   // OK
   res.resOk('修改成功!')
 } catch(e) {
-  res.resParamsErr()
+  res.resParamsErr('代码出错'+e.message)
 }})
 
 // 订单列表
@@ -270,7 +275,7 @@ try {
 
   let [err, resArr] = await utils.capture( userInfoTable.aggregate(where).toArray() )
   if (err) {
-    return res.resDataErr() //数据库出错
+    return res.resDataErr('数据库出错'+err.message) //数据库出错
   }
   
   // 可遍历
@@ -280,7 +285,7 @@ try {
     state === -1 || 
     state === null || 
     state === undefined ||
-    fs.stat === ''
+    state === ''
   ) {
     // 全部订单
     res.resOk({result: resArr})
@@ -310,7 +315,7 @@ try {
   }
 
 } catch(err) {
-  res.resOk({result:[], msg:'未匹配到要求数据'})
+  res.resOk({result:[], msg:err.message})
 }})
 
 // 订单删除
@@ -333,7 +338,7 @@ r.delete('/delete', async(req, res) => { try {
   }
   const [err, resObj] = await utils.capture( userInfoTable.updateOne(query, upObj) )
   if (err) {
-    return res.resBadErr('服务器遇到错误')
+    return res.resBadErr('服务器遇到错误'+err)
   }
 
   if (resObj.modifiedCount === 0) {
@@ -345,12 +350,11 @@ r.delete('/delete', async(req, res) => { try {
 
   //---------------------- END
 } catch(e) {
-  res.resParamsErr(e)
+  res.resParamsErr(e.message)
 }})
 
 // 订单详情
-r.get('/detail', async(req, res) => {
-try {
+r.get('/detail', async(req, res) => { try {
   let { rid,oid } = req.query
   let uid = ObjectId(req.user.uid) // UID
   oid = ObjectId(oid) //订单ID
@@ -424,7 +428,7 @@ try {
   const allPromise = Promise.all([detailPromise, userInfoPromise]) 
   let [err, resArr] = await utils.capture( allPromise )        // [err, [] ]
   if (err) {
-    return res.resDataErr({result:{}, msg:'数据库出错'})
+    return res.resDataErr({result:{}, msg:err.message})
   }
 
   let str = resArr[1].orders[0].phone
@@ -436,7 +440,7 @@ try {
 
   // OK
 } catch(err) {
-  res.resOk({result:{}, msg:'未找到符合要求的'})
+  res.resOk({result:{}, msg:err.message})
 }})
 
 
