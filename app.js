@@ -11,9 +11,9 @@ const detailRouter    = require('./router/detailRouter')
 const userRouter      = require('./router/userRouter')
 const searchRouter    = require('./router/searchRouter')
 const orderRouter     = require('./router/orderRouter')
-const profileRouter   = require('./router/profileRouter')
+const profileRouter   = require('./router/profileRouter')       
 const profileSafeRouter = require('./router/profileSafeRouter') //安全信息，密码这类
-const profileInfoRouter = require('./router/profileInfoRouter') //安全信息，密码这类
+const profileInfoRouter = require('./router/profileInfoRouter') //个人信息，昵称,姓名,年龄等
 
 /**
  * 全局中间件引入 

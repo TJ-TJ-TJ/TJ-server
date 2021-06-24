@@ -36,18 +36,40 @@ const avatarError    =   (err, req, res, next) => {
   }
 }
 
+// 修改接口 - 头像
 
-// 修改接口
-r.put('/info', upload.single('avatar'), async(req,res,next) => { try {
+r.put('/avatar', upload.single('avatar'),async(req,res) => { try {
+  
+  let query = {uid: ObjectId(req.user.uid)}
+  let avatarPath = path.join('https://tj.testw.top/public/img', req.file.filename)
+  let update = {
+    $set:{ avatar: avatarPath }
+  }
+
+  const [err,resObj] = await utils.capture( userInfoTable.updateOne(query, update) )
+  if (err) {
+    return res.resBadErr(err.message)
+  }
+  if (resObj.modifiedCount === 0) {
+    return res.resBadErr('没有被修改')
+  }
+
+  //OK 
+  res.resOk({result:{ avatar: avatarPath}})
+
+} catch(e) {
+  res.resParamsErr('代码出错'+e.message)
+}}, avatarError)
+
+// 修改接口 - 非头像
+r.put('/info', async(req,res,next) => { try {
 
   let { nickname,uname,sex,age,city } = req.body
   sex = Number(sex)
   age = Number(age)
-  let avatarPath = path.join('https://tj.testw.top/public/img', req.file.filename)
 
   let query = {uid: ObjectId(req.user.uid)}
   let update = { $set:{
-    avatar: avatarPath,
     sex,
     age,
     city,
@@ -63,11 +85,11 @@ r.put('/info', upload.single('avatar'), async(req,res,next) => { try {
   }
 
   //OK 
-  res.resOk({result: { avatar: avatarPath }})
+  res.resOk()
 
 } catch(e) {
   res.resParamsErr('代码错误'+e.message)
-}}, avatarError)
+}})
 
 // 获取接口
 r.get('/info', async(req,res) => { try {
