@@ -70,8 +70,7 @@ try {
 
   res.resOk({ result: resObj })
 } catch(err) {
-  console.log('-------有误', err)
-  res.resParamsErr()
+  res.resParamsErr('代码错误' + err.message)
 }
 })
 

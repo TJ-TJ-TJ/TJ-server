@@ -361,11 +361,35 @@ try {
   let upwd = req.body.upwd
   let isRemember = req.body.isremember || true  // 是否记住登录状态
 
-  let upwdTest = /(?!^\d+$)(?!^[a-z]+$)(?!^[A-Z]+$)^\w{6,20}$/.test(upwd)
+
   let uphoneTest = /^1\d{10}$/.test(uname)
   let umailTest = /^\w+@\w+[.][a-z]+$/.test(uname)
-  if (!upwdTest) {
-    return res.resParamsErr('密码格式错误')
+  if (upwd.length < 6 || upwd.length > 18) {
+    return res.resParamsErr('密码长度6-18位')
+  }
+  // 全是小写字符
+  if ( /^[a-z]{6,18}$/.test(upwd) ) {
+    return res.resParamsErr('密码不能全是小写字母')
+  }
+  // 全是大写字母
+  if ( /^[A-Z]{6,18}$/.test(upwd) ) {
+    return res.resParamsErr('密码不能全是大写字母')
+  }
+  // 全是数字
+  if ( /^[0-9]{6,18}$/.test(upwd) ) {
+    return res.resParamsErr('密码不能全是数字')
+  }
+  // 全是 .
+  if ( /^[.]{6,18}$/.test(upwd) ) {
+    return res.resParamsErr('密码不能全是.')
+  }
+  // 全是 _
+  if ( /^_{6,18}$/.test(upwd) ) {
+    return res.resParamsErr('密码不能全是_')
+  }
+  // 包含特殊字符
+  if (/[^0-9a-zA-Z._@-]/.test(upwd)) {
+    return res.resParamsErr('密码不能包含特殊字符')
   }
 
   // 手机号通过 -> 手机号登录 - 密码登录

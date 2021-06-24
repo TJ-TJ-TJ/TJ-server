@@ -199,7 +199,7 @@ r.put('/phone', async(req,res) => { try {
   let uid = ObjectId(req.user.uid)
   let {id, verify, newPhone} = req.body
   if (
-    /^1\d{10}$/.test(newPhone) )
+    !/^1\d{10}$/.test(newPhone) )
   {
     return res.resParamsErr('手机号格式有误')
   }
