@@ -81,7 +81,7 @@ r.put('/info', async(req,res,next) => { try {
     return res.resBadErr(err.message)
   }
   if (resObj.modifiedCount === 0) {
-    return res.resBadErr('没有被修改')
+    return res.resBadErr('个人信息没有被修改')
   }
 
   //OK 

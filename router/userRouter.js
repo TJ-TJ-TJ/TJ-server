@@ -152,25 +152,21 @@ async function writeUserInfo(insertData) { try {
 }}
 
 
-// 中间件 - 验证码验证码完毕后, 写入数据  处理要响应的数据 的中间件
+// 中间件 - 验证码验证码完毕后, 写入数据  处理要响应的数据 -的中间件
 /**
- * req.uphone
- * req.userInfoData
- * req.userLoginData
+ * req.loginType   登录类型
+ * req.userInfoData 用户信息表
+ * req.userLoginData   用户登录表需要插入的数据
  * 
  * 响应token, 和必要的数据
 */
 async function siginResultRouter(req, res, next) { try {
  
   // 验证码正确. 且未超时. 可以开启注册
-  let uphone = req.uphone
   let uname = Math.random().toString(26).substr(2, 8)
 
   // 写入 user_login
-  let defaultLoginData = {
-    uname,
-    uphone: uphone
-  }
+  let defaultLoginData = { uname }
   Object.assign(defaultLoginData, req.userLoginData)
   let writeUserLoginRes = await writeUserLogin(defaultLoginData)
   if ( !writeUserLoginRes.state ) {
@@ -181,7 +177,7 @@ async function siginResultRouter(req, res, next) { try {
   // 写入 user_info
   let   uidStr    = writeUserLoginRes.result.insertedId.toString()  //String
   let   isLogin   = true
-  let   loginType = 'face'
+  let   loginType = req.loginType || 'phone'
   const avatar    = 'https://z3.ax1x.com/2021/06/22/RZOHpR.png'
   
   const tokenData = {
@@ -191,13 +187,14 @@ async function siginResultRouter(req, res, next) { try {
   }
   const token = generateToken(tokenData)
   
+
   // 写入 user_info
   let defaultInfoData = {
     uid: ObjectId(uidStr), 
     uname, 
     avatar
   }
-  ObjectId.assign(defaultInfoData, req.userInfoData)
+  Object.assign(defaultInfoData, req.userInfoData)
   let writeInfoRes =  await writeUserInfo(defaultInfoData)
   
   if ( !writeInfoRes.state ) {
@@ -208,7 +205,9 @@ async function siginResultRouter(req, res, next) { try {
   // OK
   // 写入成功
   res.resOk({result: { token, loginType, uid:uidStr, uname,  avatar}})
-  sendOneSmsRouter.smsOk({id})
+  if (loginType === 'phone') {
+    sendOneSmsRouter.smsOk({id})
+  }
 
   // END -----
 } catch(e) {
@@ -310,6 +309,50 @@ function sendOneSmsRouter(smsParams) {
   }}
 }
 
+/**
+ * req.uid
+ * req.loginType
+*/
+// 响应登录后的数据   token 等
+async function loginResultRouter(req,res){try {
+  let uid = req.uid //ObjectId类型
+  let loginType = req.loginType || 'phone'   //需要改动
+
+  const tokenData = {
+    uid: uid.toString(),
+    isLogin: true,
+    loginType
+  }
+  const token = generateToken(tokenData)
+  const userInfoWhere = {
+    uid
+  }
+
+  // uname 修改了 nickname
+  const userInfoOption = {
+    projection: {
+      _id: 0,
+      uname: 1,  //案例说是  nickname
+      avatar: 1,
+    }
+  }
+
+  // 查找
+  let [err2, resObj2] = await utils.capture( userInfoTable.findOne(userInfoWhere, userInfoOption) )
+  if (err2) {
+    return res.resBadErr('数据库有误' + err2.message)
+  }
+  if (!resObj2) {
+    return res.resBadErr('没有此用户')
+  }
+
+  res.resOk({result: { token ,loginType,  uid, avatar:resObj2.avatar, uname: resObj2.uname  }})
+  return
+
+}catch(e) {
+  res.resBadErr(e.message)
+}}
+
 
 // 一、登录 -账号密码
 r.post('/login', async(req, res, next) => {
@@ -327,29 +370,19 @@ try {
 
   // 手机号通过 -> 手机号登录 - 密码登录
   if (uphoneTest) {
-    let where = { uphone:String(uname), upwd }
+    let where = { uphone:String(uname), upwd:String(upwd) }
     let [err, resObj] = await utils.capture( userTable.findOne(where) )
     if (err) {
-      return res.resDataErr('数据库有误')
+      return res.resDataErr('数据库有误'+err.message)
     }
     if (!resObj) {
       return res.resParamsErr('账号和密码不匹配')
     }
+
     // 验证通过
-    {
-      let uid = resObj._id.toString()
-      let uname = resObj.uname
-      let isLogin = true
-      let loginType = 'phone'
-      const tokenData = {
-        uid,
-        isLogin,
-        loginType
-      }
-      const token = generateToken(tokenData)
-      res.resOk({result: { token, uid, uname, loginType}})
-      return
-    }
+    req.uid = resObj._id  //ObjectId 类型
+    req.loginType = 'uname'
+    return next()
   }
 
   // 邮箱号 
@@ -358,35 +391,36 @@ try {
     let [err, resObj] = await utils.capture( userTable.findOne(where) )
 
     if (err) {
-      return res.resDataErr()
+      return res.resDataErr('数据库出错'+err.message)
     }
     if (!resObj) {
       return res.resParamsErr('账号与密码不匹配')
     }
-
-    // 验证通过
-    {
-      let uid = resObj._id.toString()
-      let uname = resObj.uname
-      let isLogin = true
-      let loginType = 'mail'
-      const tokenData = {
-        uid,
-        isLogin,
-        loginType
-      }
-      const token = generateToken(tokenData)
-      res.resOk({result: { token, uid, uname,loginType}})
-      return
-    }
+    req.uid = resObj._id  //ObjectId 类型
+    req.loginType = 'uname'
+    return next()
   }
 
-  // 手机号 - 邮箱号 均有误
-  res.resParamsErr()
+  //用户名
+  {
+    let where = { uname:uname, upwd }
+    let [err, resObj] = await utils.capture( userTable.findOne(where) )
+
+    if (err) {
+      return res.resDataErr('数据库出错'+err.message)
+    }
+    if (!resObj) {
+      return res.resParamsErr('账号与密码不匹配')
+    }
+    req.uid = resObj._id  //ObjectId 类型
+    req.loginType = 'uname'
+    return next()
+  }
+
+  //END----------------------
 } catch(err) {
-  res.resParamsErr('代码有吴')
-}
-})
+  res.resParamsErr('代码有误'+err.message)
+}}, loginResultRouter)
 
 
 // 二、登录 -根据手机号发送短信
@@ -395,7 +429,7 @@ async function isExistRouter(req,res,next){
     let phone = req.query.phone
     if (await isExist(phone)) {
       // 手机存在, 可以发送
-      next()
+      return next()
     } else {
       res.resBadErr({code:403, msg:'请先注册'})
     }
@@ -447,42 +481,10 @@ try {
   // 验证通过
   req.uid = resObj._id
   sendOneSmsRouter.smsOk({id})
-  next()
+  return next()
 
 } catch(err) {
   res.resParamsErr('代码错误'+err.message)
-}}
-              // 响应登录后的数据
-async function loginResultRouter(req,res){try {
-  let uid = req.uid //ObjectId类型
-  let loginType = req.loginType || 'phone'   //需要改动
-
-  const tokenData = {
-    uid: uid.toString(),
-    isLogin: true,
-    loginType
-  }
-  const token = generateToken(tokenData)
-  const userInfoWhere = {
-    uid
-  }
-
-  // uname 修改了 nickname
-  const userInfoOption = {
-    projection: {
-      _id: 0,
-      uname: 1,  //案例说是  nickname
-      avatar: 1,
-    }
-  }
-
-  // 查找
-  let [err2, resObj2] = await utils.capture( userInfoTable.findOne(userInfoWhere, userInfoOption) )
-  res.resOk({result: { token ,loginType,  uid, avatar:resObj2.avatar, uname: resObj2.uname  }})
-  return
-
-}catch(e) {
-  res.resBadErr(e.message)
 }}
 r.post('/login1', smsLoginRouter, loginResultRouter)
 
@@ -502,12 +504,14 @@ async function faceLoginRouter(req,res,next) { try {
   let options = { liveness_control: 'NORMAL' }
   let [err, faceRes] = await utils.capture( faceClient.search(base64, imageType, groupId, options) )
   if (err) {
-    return res.resParamsErr()
+    return res.resParamsErr(err)
+  }
+  if (faceRes.error_code !== 0) {
+    return res.resBadErr(faceRes.error_msg)
   }
 
   // 没有人脸
   if (!faceRes.result) {
-    
     return res.resBadErr('未注册')
   }
 
@@ -519,22 +523,22 @@ async function faceLoginRouter(req,res,next) { try {
 
   // 查数据库
   {
-    let where = { uface_id: userObj.user_id }
+    let where = { uface_id: Number(userObj.user_id) }
     // 可以响应.   uid:数据库用户ID.   userIid:人脸组ID
     let [err2, resObj2] = await utils.capture( userTable.findOne(where) )
 
 
     if (err2) {
-      return res.resDataErr('遇到错误')
+      return res.resDataErr('遇到错误'+err2)
     }
     if (!resObj2) {
       return res.resBadErr('未注册')
     }
-
+    
     // OK
     req.uid = resObj2._id //ObjectId  类型
     req.loginType = 'face'
-    next()
+    return next()
   }
 
   // END
@@ -542,7 +546,6 @@ async function faceLoginRouter(req,res,next) { try {
   return res.resParamsErr('代码错误'+e.message)
 }}
 r.post('/login2', upload.single('face'), faceLoginRouter, loginResultRouter, faceError)
-
 
 
 
@@ -686,7 +689,8 @@ r.post('/sigin2', async(req, res) => {
 })
 
 // 三、注册 -人脸注册
-r.post('/sigin3',upload.single('face'), async(req, res) => {
+// 人脸注册 主要逻辑
+async function sigin3Router(req, res, next) { try{
   if (!req.file) {
     res.resParamsErr()
     return
@@ -726,21 +730,20 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
   [err, promiseRes] = await utils.capture( faceClient.addUser(base64, imageType, groupId, userId, options) )
   // 未知错误 - 网络错误
   if (err) {
-    res.resDataErr('网络错误'+err)
-    return
+    return res.resDataErr('网络错误'+err)
   }
 
   // 人脸图已存入服务器. 开始注册账号, 生成UID
-  const  userLoginData = { uname, uface_id }
-  const userInfoData = {
-    uid: ObjectId(uid),
-    avatar,
-    uname,
-    sex: 1
-  }
+  req.loginType       = 'face'
+  req.userLoginData   = { uface_id: userId }
+  req.userInfoData    = {}
+  return next()
 
-  
-}, siginResultRouter ,faceError)
+  // END----------------------
+} catch(e) {
+  res.resParamsErr('代码出错'+e.message)
+}}
+r.post('/sigin3',upload.single('face'), sigin3Router, siginResultRouter ,faceError)
 
 
 
