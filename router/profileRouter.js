@@ -69,9 +69,8 @@ try {
   res.resOk()
   // OK
 } catch(err) {
-  res.resParamsErr()
-}
-})
+  res.resParamsErr('代码有误'+err.message)
+}})
 
 // 取消收藏   - DELETE
 r.delete('/collect', async(req, res) => {
@@ -95,6 +94,7 @@ try {
   res.resParamsErr()
 }
 })
+
 
 
 

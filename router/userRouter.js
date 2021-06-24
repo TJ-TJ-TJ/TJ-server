@@ -71,6 +71,7 @@ const CaptchaConfig = {
 
 //  方法-----------------------------
     // 检查手机号|邮箱是否注册 
+    // 是否被注册过？ | 是否存在？  true被注册过， false未被注册过
 async function isExist(number) {
   let uphone = number || ''
   let umail = number || ''
@@ -110,7 +111,7 @@ async function isExist(number) {
   }
 }
 
-    // 封装 数据库操作
+    // 封装 数据库操作 - 写入 user_login
 async function writeUserLogin(insertData) { try {
   let [err, resObj] = await utils.capture( userTable.insertOne(insertData) )
   if (err) {
@@ -271,10 +272,6 @@ try {
       return res.resParamsErr('账号和密码不匹配')
     }
     // 验证通过
-    if (isRemember === false) { // 不记住登录状态
-      req.session.cookie.maxAge = ''
-    }
-
     {
       let uid = resObj._id.toString()
       let uname = resObj.uname

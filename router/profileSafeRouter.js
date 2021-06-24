@@ -122,6 +122,38 @@ function sendOneSmsRouter(smsParams) {
 // 发送验证码 - query - uphone字段。 
 r.get('/sendSms', sendOneSmsRouter())
 
+// 零、获取安全信息      - GET
+r.get('/safeInfo', async(req,res) => { try {
+  let _id = ObjectId(req.user.uid)
+  let query = {_id}
+  let need = {
+    projection:{ //需要哪些字段
+      _id: 0, //uid
+      uname: 1,
+      uphone: 1,
+      umail: 1
+    }
+  }
+
+  const [err, resObj] = await utils.capture( userLoginTable.findOne(query, need) )
+  if (err) {
+    return res.resBadErr(err.message)
+  }
+  if (!resObj) {
+    return res.resBadErr('空的结果')
+  }
+
+  // OK 某些字段可能还没有值
+  // if (resObj.uphone) {
+  //   resObj.uphone = resObj.uphone.substr(0,3) + '****' + resObj.uphone.substr(-4)
+  // }
+  return res.resOk({result: resObj})
+
+  // END----------------
+} catch(e) {
+  return res.resParamsErr('代码错误'+e.message)
+}})
+
 
 // 一、修改用户名        - PUT
 r.put('/uname',async(req,res) => {try {

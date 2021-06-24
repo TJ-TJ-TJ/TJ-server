@@ -37,11 +37,12 @@ const avatarError    =   (err, req, res, next) => {
 }
 
 
+// 修改接口
 r.put('/info', upload.single('avatar'), async(req,res,next) => { try {
-  let { nickname,sex,age,birthday,city } = req.body
+
+  let { nickname,uname,sex,age,city } = req.body
   sex = Number(sex)
-  age = Date.now() - new Date(birthday)
-  age = parseInt( age/1000/60/60/24/365 )
+  age = Number(age)
   let avatarPath = path.join('https://tj.testw.top/public/img', req.file.filename)
 
   let query = {uid: ObjectId(req.user.uid)}
@@ -50,7 +51,8 @@ r.put('/info', upload.single('avatar'), async(req,res,next) => { try {
     sex,
     age,
     city,
-    nickname
+    nickname,
+    xingming: uname,
   }}
   const [err, resObj] = await utils.capture( userInfoTable.updateOne(query, update) )
   if (err) {
@@ -61,10 +63,40 @@ r.put('/info', upload.single('avatar'), async(req,res,next) => { try {
   }
 
   //OK 
-  res.resOk()
+  res.resOk({result: { avatar: avatarPath }})
 
 } catch(e) {
   res.resParamsErr('代码错误'+e.message)
 }}, avatarError)
+
+// 获取接口
+r.get('/info', async(req,res) => { try {
+
+  const uid = ObjectId(req.user.uid)
+  const query = { uid }
+  const need = { projection:{
+    _id: 0,
+    nickname: 1,
+    xingming: 1,
+    sex: 1,
+    age: 1,
+    city: 1,
+    avatar: 1
+  }}
+  const [err, resObj] = await utils.capture( userInfoTable.findOne(query, need) )
+
+  if (err) {
+    return res.resBadErr('数据库错误'+err.message)
+  }
+  if (!resObj) {
+    return res.resBadErr('未找到此账号相关信息')
+  }
+  resObj.uname = resObj.xingming   //uname放真实姓名
+  delete resObj.xingming
+  return res.resOk({result: resObj})
+  //END----------------
+} catch(e) {
+  return res.resBadErr('代码出错'+e.message)
+}})
 
 module.exports = r
