@@ -152,6 +152,70 @@ async function writeUserInfo(insertData) { try {
 }}
 
 
+// 中间件 - 验证码验证码完毕后, 写入数据  处理要响应的数据 的中间件
+/**
+ * req.uphone
+ * req.userInfoData
+ * req.userLoginData
+ * 
+ * 响应token, 和必要的数据
+*/
+async function siginResultRouter(req, res, next) { try {
+ 
+  // 验证码正确. 且未超时. 可以开启注册
+  let uphone = req.uphone
+  let uname = Math.random().toString(26).substr(2, 8)
+
+  // 写入 user_login
+  let defaultLoginData = {
+    uname,
+    uphone: uphone
+  }
+  Object.assign(defaultLoginData, req.userLoginData)
+  let writeUserLoginRes = await writeUserLogin(defaultLoginData)
+  if ( !writeUserLoginRes.state ) {
+    // 写入失败
+    return res.resBadErr( writeUserLoginRes.msg )
+  }
+
+  // 写入 user_info
+  let   uidStr    = writeUserLoginRes.result.insertedId.toString()  //String
+  let   isLogin   = true
+  let   loginType = 'face'
+  const avatar    = 'https://z3.ax1x.com/2021/06/22/RZOHpR.png'
+  
+  const tokenData = {
+    uid: uidStr,
+    isLogin,
+    loginType
+  }
+  const token = generateToken(tokenData)
+  
+  // 写入 user_info
+  let defaultInfoData = {
+    uid: ObjectId(uidStr), 
+    uname, 
+    avatar
+  }
+  ObjectId.assign(defaultInfoData, req.userInfoData)
+  let writeInfoRes =  await writeUserInfo(defaultInfoData)
+  
+  if ( !writeInfoRes.state ) {
+    // 写入失败
+    return res.resBadErr(writeInfoRes.msg)
+  }
+
+  // OK
+  // 写入成功
+  res.resOk({result: { token, loginType, uid:uidStr, uname,  avatar}})
+  sendOneSmsRouter.smsOk({id})
+
+  // END -----
+} catch(e) {
+  res.resParamsErr('代码有误'+e.message)
+}}
+
+
 
 /**
  * @params{ Object },  
@@ -389,7 +453,7 @@ try {
   res.resParamsErr('代码错误'+err.message)
 }}
               // 响应登录后的数据
-async function loginResult(req,res){try {
+async function loginResultRouter(req,res){try {
   let uid = req.uid //ObjectId类型
   let loginType = req.loginType || 'phone'   //需要改动
 
@@ -402,11 +466,13 @@ async function loginResult(req,res){try {
   const userInfoWhere = {
     uid
   }
+
+  // uname 修改了 nickname
   const userInfoOption = {
     projection: {
       _id: 0,
-      uname: 1,
-      avatar: 1
+      uname: 1,  //案例说是  nickname
+      avatar: 1,
     }
   }
 
@@ -418,7 +484,7 @@ async function loginResult(req,res){try {
 }catch(e) {
   res.resBadErr(e.message)
 }}
-r.post('/login1', smsLoginRouter, loginResult)
+r.post('/login1', smsLoginRouter, loginResultRouter)
 
 
 // 三、登录 -人脸登录
@@ -475,7 +541,7 @@ async function faceLoginRouter(req,res,next) { try {
 } catch(e) {
   return res.resParamsErr('代码错误'+e.message)
 }}
-r.post('/login2', upload.single('face'), faceLoginRouter, loginResult, faceError)
+r.post('/login2', upload.single('face'), faceLoginRouter, loginResultRouter, faceError)
 
 
 
@@ -631,10 +697,19 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
   let imageType = "BASE64"
   let options = { liveness_control: 'NORMAL' }
   let [err, promiseRes] = await utils.capture( faceClient.search(base64, imageType, groupId, options) )
+  if (err) {
+    return res.resBadErr(err)
+  }
   /**
    * 存在人脸
    * 分支语句
   */
+  // 图片格式不符合要求
+  if (promiseRes.error_code !== 0) {
+    return res.resBadErr(promiseRes.error_msg)
+  }
+
+  // 在人脸库匹配到人脸.   --- 已经注册
   if (promiseRes.result !== null) {
     if (promiseRes.result.user_list[0].score >= 80) {
       res.resBadErr({code:403, msg:'已经注册过, 可以登录'})
@@ -642,61 +717,30 @@ r.post('/sigin3',upload.single('face'), async(req, res) => {
     }
   }
 
+
   /**
    * 不存在 . 注册
   */
-  let userId = Date.now()
+  let userId = Date.now()  //用户组ID
   options = { liveness_control: 'NORMAL' }                                            //userId 放
   [err, promiseRes] = await utils.capture( faceClient.addUser(base64, imageType, groupId, userId, options) )
   // 未知错误 - 网络错误
   if (err) {
-    res.resDataErr('网络错误')
+    res.resDataErr('网络错误'+err)
     return
   }
 
   // 人脸图已存入服务器. 开始注册账号, 生成UID
-  {
-    let uname = Math.random().toString(26).substr(2, 8)
-    let insertData = { uname, uface_id }
-    let [err, resObj] = await utils.capture( userTable.insertOne(insertData) )
-
-    // 非法的操作.
-    if (err || resObj.insertedCount!==1) {
-      return res.resDataErr('注册失败, 请重试')
-    }
-
-    // 可以响应.   uid:数据库用户ID.   userIid:人脸组ID
-    let uid = resObj.insertedId.toString()
-    let avatar = 'https://z3.ax1x.com/2021/06/22/RZOHpR.png'
-    let isLogin = true
-    let loginType = 'face'
-    const tokenData = {
-      uid,
-      userId, // userId 用户组ID
-      isLogin, 
-      loginType
-    }
-    const token = generateToken(tokenData)
-    // 写入 user_info
-    {
-      // 写入 user_info
-      const insertInfo = {
-        uid: ObjectId(uid),
-        avatar,
-        uname,
-        sex: 1
-      }
-      const [err, resObj] = await utils.capture( userInfoTable.insertOne(insertInfo) )
-      if (err || resObj.insertedCount === 0) {
-        res.resBadErr('注册失败')
-        return
-      }
-
-      // OK
-      return res.resOk({result: { token, uid, uname,loginType, avatar}})    // uname 是随机码. 已经存在. 
-    }
+  const  userLoginData = { uname, uface_id }
+  const userInfoData = {
+    uid: ObjectId(uid),
+    avatar,
+    uname,
+    sex: 1
   }
-}, faceError)
+
+  
+}, siginResultRouter ,faceError)
 
 
 

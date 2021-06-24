@@ -252,7 +252,7 @@ r.get('/sendEmail', (req,res) => {
     umail: email,
     isOk: true
   } 
-  let url = 'https://tj.testw.top/v1/profile/emailAuth?token='+generateToken(tokenData)
+  let url = 'https://tj.testw.top/v1/profile/emailUpdate?token='+generateToken(tokenData)
   let text  = `尊敬的用户，
   您好！欢迎您成为我们的会员！
   
@@ -337,7 +337,7 @@ r.put('/pwd', async(req, res) => {
     return res.resParamsErr('密码不能全是_')
   }
   // 包含特殊字符
-  if (/[^0-9a-zA-Z._]/.test(newPwd)) {
+  if (/[^0-9a-zA-Z._@-]/.test(newPwd)) {
     return res.resParamsErr('密码不能包含特殊字符')
   }
   
@@ -356,16 +356,17 @@ r.put('/pwd', async(req, res) => {
   const upObj = {$set: { upwd:newPwd }}
 
   const [err, resObj] = await utils.capture( userLoginTable.updateOne(query, upObj) )
-  if (err || resObj.modifiedCount===0) {
-    return res.resBadErr('修改失败，不要重复修改')
-  } else {
-    // OKOK
-    res.resOk('修改成功')
-    sendOneSmsRouter.smsOk({id})
+  if (err) {
+    return res.resBadErr('修改失败'+err.message)
+  }
+
+  if(resObj.modifiedCount===0) {
+    return res.resBadErr('不要重复修改')
   }
   
-  
-  
+  res.resOk('修改成功')
+  sendOneSmsRouter.smsOk({id})
+  return
   //---------- END
 } catch(e) {
   res.resParamsErr('代码出错'+e.message)

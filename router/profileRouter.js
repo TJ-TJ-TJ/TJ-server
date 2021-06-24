@@ -77,7 +77,7 @@ r.delete('/collect', async(req, res) => {
 try {
   let uid = ObjectId(req.user.uid) //用户UID
   let rid = req.body.rid
-  if (!rid) { return res.resParamsErr() }
+  if (!rid) { return res.resParamsErr(rid) }
   rid = ObjectId(rid)
 
   let where = { uid }
@@ -87,13 +87,13 @@ try {
     }
   }
   let [err, resObj] = await utils.capture( userInfoTable.updateOne(where, deleObj) )
-  if (err || resObj.modifiedCount!==1) { return res.resParamsErr() }
+  if (err) { return res.resParamsErr() }
+  if (resObj.modifiedCount===0) { return res.resBadErr('没有这样的数据') }
 
   res.resOk()
 } catch(err) {
-  res.resParamsErr()
-}
-})
+  res.resParamsErr(err.message)
+}})
 
 
 
