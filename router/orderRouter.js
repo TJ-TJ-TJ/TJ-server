@@ -24,8 +24,9 @@ try {
   const where = {
     "orders.rid": rid,
     $and: [
-      { "orders.start_time": { $lt:  end_time} },
-      { "orders.end_time": { $gt: start_time } }
+      { "orders.rid": rid },
+      { "orders.start_time": { $gt:  end_time} },  //end_time > order.start    order.start < end
+      { "orders.end_time": { $lt: start_time } }   // start_time < order.end 
     ] 
     
   }
@@ -61,9 +62,12 @@ r.post('/reserve', async(req, res) => {try {
   }
 
   
-  // 逻辑有误.   一个用户 可以预定多次相同的房间. 
+  // 逻辑有误.   
   let where = {
     uid,
+    "orders.rid": {
+      $ne: rid
+    }
   }
   let upObj = {
     $addToSet: {
@@ -86,7 +90,7 @@ r.post('/reserve', async(req, res) => {try {
   
   let [err, resObj] = await utils.capture( userInfoTable.updateOne(where, upObj) )
   if (err) { return res.resParamsErr(err.message) }
-  if (resObj.modifiedCount === 0) { return res.resBadErr('预定失败,请刷新重试') }
+  if (resObj.modifiedCount === 0) { return res.resBadErr('预定失败,已被他人预定') }
 
   // OK
   res.resOk({result: {oid, date}})

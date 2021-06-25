@@ -11,7 +11,9 @@ const r = express.Router()
 */
 const detailTable = collection('detail')
 const userInfoTable = collection('user_info')
-/**
+
+ 
+/** 是否可以预定
  * @params { start_time, end_time } Number
  * @params { rid }                  ObjectId类型
  * @result { Boolean } true,可以预定;
@@ -23,12 +25,13 @@ async function isReserve({start_time, end_time, rid}) {
     const where = {
       "orders.rid": rid,
       $and: [
-        { "orders.start_time": { $lt:  end_time} },
-        { "orders.end_time": { $gt: start_time } }
+        { "orders.rid": rid },
+        { "orders.start_time": { $gt:  end_time} },  //end_time > order.start    order.start < end
+        { "orders.end_time": { $lt: start_time } }   // start_time < order.end 
       ] 
       
     }
-    const ops = { projection: {_id:1} }
+    const ops = { projection: {uid:1, _id:0, orders:1} }
     const [err, resObj] = await utils.capture( userInfoTable.findOne(where, ops) )
     if (resObj) {
       // 有值. 说明不能预定
@@ -80,18 +83,15 @@ try {
 
 
 // 是否可 预定?
-r.get('/is', async(req, res) => {
-try {
+r.get('/is', async(req, res) => { try {
 
   let start = +req.query.start
   let end   = +req.query.end
   let rid = req.query.rid
   if (!start || !end || !rid) {
-    return res.resParamsErr()
+    return res.resParamsErr('缺少query参数')
   }
   rid = ObjectId(rid)
-
-  console.log(rid)
 
 
   // 可以查询
