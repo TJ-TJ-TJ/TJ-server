@@ -36,7 +36,7 @@ const mailArray = []  //{id:时间戳, verify}
 const multerOptions = {
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 15*1024*1024 //10mb
+    fileSize:20*1024*1024 //10mb
   }
 }
 const upload = multer(multerOptions)
@@ -723,32 +723,33 @@ async function sigin3Router(req, res, next) { try{
     res.resParamsErr()
     return
   }
-
+  
   let faceBuffer = await sharp(req.file.buffer).resize(1200,1000).toBuffer()
   let base64 = faceBuffer.toString('base64')
   let groupId = "test"
   let imageType = "BASE64"
   let options = { liveness_control: 'NORMAL' }
   let [err, promiseRes] = await utils.capture( faceClient.search(base64, imageType, groupId, options) )
+  
+  console.log(err, promiseRes);
   if (err) {
     return res.resBadErr(err)
+    
   }
   /**
    * 存在人脸
    * 分支语句
   */
-  // 图片格式不符合要求
-  if (promiseRes.error_code !== 0) {
-    return res.resBadErr(promiseRes.error_msg)
-  }
-
-  // 在人脸库匹配到人脸.   --- 已经注册
-  if (promiseRes.result !== null) {
-    if (promiseRes.result.user_list[0].score >= 80) {
-      res.resBadErr({code:403, msg:'已经注册过, 可以登录'})
-      return
+  // 找到了, 已经注册过
+  if (promiseRes.error_code === 0) {
+    if (promiseRes.result !== null) {
+      if (promiseRes.result.user_list[0].score >= 80) {
+        res.resBadErr({code:403, msg:'已经注册过, 可以登录'})
+        return
+      }
     }
   }
+  
 
 
   /**
@@ -771,6 +772,7 @@ async function sigin3Router(req, res, next) { try{
   // END----------------------
 } catch(e) {
   res.resParamsErr('代码出错'+e.message)
+  console.log(e)
 }}
 r.post('/sigin3',upload.single('face'), sigin3Router, siginResultRouter ,faceError)
 
