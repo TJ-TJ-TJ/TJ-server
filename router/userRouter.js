@@ -791,7 +791,7 @@ r.get('/quit', (req, res) => {
 })
 
 // 添加人脸
-r.post('/addFace', upload.single('face'), async(req, res) => {
+r.post('/addFace', upload.single('face'), async(req, res) => { try {
   if (!req.file) {
     res.resParamsErr('缺少 face字段')
     return
@@ -805,7 +805,6 @@ r.post('/addFace', upload.single('face'), async(req, res) => {
   const groupId = 'test'
   const imageType = "BASE64"
   const options = { liveness_control: 'NORMAL' }     
-  
   const uid = ObjectId(req.user.uid)
   const need = {
     projection:{
@@ -819,23 +818,42 @@ r.post('/addFace', upload.single('face'), async(req, res) => {
     return res.resDataErr('数据库错误'+err2.message)
   }
 
-  
-
   if (!resObj) {
     return res.resBadErr('此用户有BUG')
   }
 
-  // OK -> 人脸库insert
-  const userId = Number(resObj.uface_id)
-  let [err, promiseRes] = await utils.capture( faceClient.addUser(base64, imageType, groupId, userId, options) )
+  // 非人脸注册形式 添加则 resObj.uface_id 为 undefined|null
+  let uface_id = null
+    // 有人脸ID
+  if (resObj.uface_id) {
+    uface_id = resObj.uface_id
+  } else {
+    // 无人脸ID
+    uface_id = Date.now() //Number
+    let updateData = {$set: {
+      uface_id
+    }}
+    userTable.updateOne({_id:uid}, updateData)
+  }
+  uface_id = Number(uface_id)
+
+  // 添加 人脸数据库
+  let [err, promiseRes] = await utils.capture( faceClient.addUser(base64, imageType, groupId, uface_id, options) )
   // 未知错误 - 网络错误
   if (err) {
     return res.resBadErr('未知错误' + err.message)
   }
+  if (promiseRes.error_code !== 0) {
+    return res.resBadErr('添加失败' + promiseRes.error_msg)
+  }
 
-  // 添加成功
-  res.resOk('添加成功')
-}, faceError)
+  // OK
+  // uface_id 插入数据库
+  
+  return res.resOk()
+} catch(e) {
+  res.resParamsErr('代码错误' + e.message)
+}}, faceError)
 
 
 
