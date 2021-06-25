@@ -41,7 +41,7 @@ const avatarError    =   (err, req, res, next) => {
 r.put('/avatar', upload.single('avatar'),async(req,res) => { try {
   
   let query = {uid: ObjectId(req.user.uid)}
-  let avatarPath = path.join('https://tj.testw.top/public/img', req.file.filename)
+  let avatarPath = 'https://tj.testw.top/public/img/' + req.file.filename
   let update = {
     $set:{ avatar: avatarPath }
   }
