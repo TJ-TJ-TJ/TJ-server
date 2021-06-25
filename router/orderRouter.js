@@ -21,18 +21,25 @@ async function isReserve({start_time, end_time, rid}) {
 try {
   start_time = Number(start_time)
   end_time   = Number(end_time)
-  const where = {
-    "orders.rid": rid,
-    $and: [
-      { "orders.rid": rid },
-      { "orders.start_time": { $gt:  end_time} },  //end_time > order.start    order.start < end
-      { "orders.end_time": { $lt: start_time } }   // start_time < order.end 
-    ] 
-    
-  }
-  const ops = { projection: {_id:1} }
-  const [err, resObj] = await utils.capture( userInfoTable.findOne(where, ops) )
-  if (resObj) {
+  const where = [
+    {
+      $unwind: '$orders'
+    },
+    {
+      $match: {
+        "orders.rid": rid,
+        "orders.start_time": { $lt:  end_time},
+        "orders.end_time": { $gt: start_time }
+      } // 找到这一条记录
+    },
+    {
+      $project:{
+        _id:1,
+      }
+    }
+  ]
+  const [err, resArr] = await utils.capture( userInfoTable.aggregate(where).toArray() )
+  if (resArr.length >= 1) {
     // 有值. 说明不能预定
     return false
   } else {
@@ -65,9 +72,9 @@ r.post('/reserve', async(req, res) => {try {
   // 逻辑有误.   
   let where = {
     uid,
-    "orders.rid": {
-      $ne: rid
-    }
+    // "orders.rid": {
+    //   $ne: rid
+    // }   致命BUG rid房间ID
   }
   let upObj = {
     $addToSet: {
