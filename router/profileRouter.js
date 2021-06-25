@@ -43,7 +43,7 @@ try {
   let { rid, imgList, title, params, score, score_count, con_title,price,new_price } =
   req.body
   if (!rid) {
-    return res.resParamsErr()
+    return res.resParamsErr('rid缺少')
   }
 
   let upObj = {
@@ -62,9 +62,13 @@ try {
     }
   }
   let [err, resObj] = await utils.capture( userInfoTable.updateOne({uid}, upObj) )
-  if (err || resObj.modifiedCount!==1) {
-    return res.resParamsErr()
+  if (err) {
+    return res.resParamsErr('数据库出错'+err.message)
   }
+  if (resObj.modifiedCount === 0) {
+    return res.resBadErr('重复插入')
+  }
+
   // 插入成功
   res.resOk()
   // OK

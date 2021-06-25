@@ -1,4 +1,5 @@
 const express           = require('express')
+const { verifyToken }   = require('../utils/jwt')
 const utils             = require('../utils/utils')
 const { collection }    = require('../utils/mongodb')
 const path              = require('path')
@@ -57,7 +58,11 @@ try {
 
   // 是否收藏.
   try {
-    let uid = ObjectId(req.user.uid)
+
+    // 全局中间件 - 没有拦截.  手动获取  uid
+    let uid = verifyToken(req.headers['token']).uid
+        uid = ObjectId(uid)
+    
     let [err2, resObj2] = await utils.capture( userInfoTable.findOne({ uid, "collect.rid": _id }) )
     if (err2 || !resObj2) {
       resObj.isCollect = false
@@ -71,8 +76,7 @@ try {
   res.resOk({ result: resObj })
 } catch(err) {
   res.resParamsErr('代码错误' + err.message)
-}
-})
+}})
 
 
 // 是否可 预定?
