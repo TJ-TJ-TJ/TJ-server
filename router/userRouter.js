@@ -1,4 +1,5 @@
 const utils             = require('../utils/utils')
+const sharp             = require('sharp');
 const express           = require('express')
 const tencentcloud      = require("tencentcloud-sdk-nodejs")
 const AipFaceClient     = require("baidu-aip-sdk").face
@@ -13,6 +14,7 @@ const userTable         = collection('user_login')
 const userInfoTable     = collection('user_info')
 const { generateToken, verifyToken } = require('../utils/jwt')
 const r = express.Router()
+
 
 
 
@@ -34,7 +36,7 @@ const mailArray = []  //{id:时间戳, verify}
 const multerOptions = {
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10*1024*1024 //10mb
+    fileSize: 15*1024*1024 //10mb
   }
 }
 const upload = multer(multerOptions)
@@ -516,12 +518,12 @@ r.post('/login1', smsLoginRouter, loginResultRouter)
 // 三、登录 -人脸登录
               // 人脸登录验证逻辑
 async function faceLoginRouter(req,res,next) { try {
-
   if (!req.file) {
     return res.resParamsErr('face参数缺少')
   }
 
-  let base64 = req.file.buffer.toString('base64')
+  let faceBuffer = await sharp(req.file.buffer).resize(1200,1000).toBuffer()
+  let base64 = faceBuffer.toString('base64')
   let groupId = "test"
   let imageType = "BASE64"
 
@@ -567,7 +569,9 @@ async function faceLoginRouter(req,res,next) { try {
 
   // END
 } catch(e) {
+  console.log(e);
   return res.resParamsErr('代码错误'+e.message)
+
 }}
 r.post('/login2', upload.single('face'), faceLoginRouter, loginResultRouter, faceError)
 
@@ -720,7 +724,8 @@ async function sigin3Router(req, res, next) { try{
     return
   }
 
-  let base64 = req.file.buffer.toString('base64')
+  let faceBuffer = await sharp(req.file.buffer).resize(1200,1000).toBuffer()
+  let base64 = faceBuffer.toString('base64')
   let groupId = "test"
   let imageType = "BASE64"
   let options = { liveness_control: 'NORMAL' }
