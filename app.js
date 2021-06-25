@@ -15,6 +15,8 @@ const profileRouter   = require('./router/profileRouter')
 const profileSafeRouter = require('./router/profileSafeRouter') //安全信息，密码这类
 const profileInfoRouter = require('./router/profileInfoRouter') //个人信息，昵称,姓名,年龄等
 
+const dataCollectRouter = require('./router/dataCollectRouter')  // 后台数据统计
+
 /**
  * 全局中间件引入 
 */
@@ -67,7 +69,7 @@ app.use('/v1/user', userRouter)
 app.use('/v1/search', searchRouter)
 app.use('/v1/order', orderRouter)
 app.use('/v1/profile', profileRouter, profileSafeRouter, profileInfoRouter)
-
+app.use('/v1/dataCollect', dataCollectRouter)
 app.use(notFound)
 
 

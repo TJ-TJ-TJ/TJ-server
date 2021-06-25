@@ -522,7 +522,9 @@ async function faceLoginRouter(req,res,next) { try {
     return res.resParamsErr('face参数缺少')
   }
 
-  let faceBuffer = await sharp(req.file.buffer).resize(1200,1000).toBuffer()
+  let faceBuffer = await sharp(req.file.buffer).resize(1000,1000,{
+    fit: 'inside'
+  }).toBuffer()
   let base64 = faceBuffer.toString('base64')
   let groupId = "test"
   let imageType = "BASE64"
@@ -725,7 +727,10 @@ async function sigin3Router(req, res, next) { try{
     return
   }
   
-  let faceBuffer = await sharp(req.file.buffer).resize(1200,1000).toBuffer()
+
+  let faceBuffer = await sharp(req.file.buffer).resize(1000,1000, {
+    fit: 'inside'
+  }).toBuffer()
   let base64 = faceBuffer.toString('base64')
   let groupId = "test"
   let imageType = "BASE64"
@@ -793,7 +798,9 @@ r.post('/addFace', upload.single('face'), async(req, res) => {
   }
 
   // 测试环境下
-  let faceBuffer = await sharp(req.file.buffer).resize(1200,1000).toBuffer()
+  let faceBuffer = await sharp(req.file.buffer).resize(1000,1000, {
+    fit:'inside'
+  }).toBuffer()
   let base64 = faceBuffer.toString('base64')
   const groupId = 'test'
   const imageType = "BASE64"
