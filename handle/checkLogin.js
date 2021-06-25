@@ -11,7 +11,7 @@ try {
   // 需要登录权限的 路由地址
   const urlList = [
     '/v1/profile/',           // 我的相关
-    '/v1/user/addface',
+    '/v1/user/addFace',
     '/v1/order/',
   ]
   const url = req.url

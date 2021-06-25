@@ -528,6 +528,7 @@ async function faceLoginRouter(req,res,next) { try {
   let imageType = "BASE64"
 
   let options = { liveness_control: 'NORMAL' }
+  // 搜索 - 人脸库
   let [err, faceRes] = await utils.capture( faceClient.search(base64, imageType, groupId, options) )
   if (err) {
     return res.resParamsErr(err)
@@ -785,23 +786,44 @@ r.get('/quit', (req, res) => {
 })
 
 // 添加人脸
-r.post('/addface', upload.single('face'), async(req, res) => {
+r.post('/addFace', upload.single('face'), async(req, res) => {
   if (!req.file) {
-    res.resParamsErr()
+    res.resParamsErr('缺少 face字段')
     return
   }
 
   // 测试环境下
-  const base64 = req.file.buffer.toString('base64')
-  const { userId } = req.user // 用户id.  不是数据库uid
+  let faceBuffer = await sharp(req.file.buffer).resize(1200,1000).toBuffer()
+  let base64 = faceBuffer.toString('base64')
   const groupId = 'test'
   const imageType = "BASE64"
-  const options = { liveness_control: 'NORMAL' }                                            //userId 放
+  const options = { liveness_control: 'NORMAL' }     
+  
+  const uid = ObjectId(req.user.uid)
+  const need = {
+    projection:{
+      _id:0,
+      uface_id:1
+    }
+  }
+  // find user_login
+  let [err2, resObj] = await utils.capture( userTable.findOne({_id:uid}, need) )
+  if (err2) {
+    return res.resDataErr('数据库错误'+err2.message)
+  }
+
+  
+
+  if (!resObj) {
+    return res.resBadErr('此用户有BUG')
+  }
+
+  // OK -> 人脸库insert
+  const userId = Number(resObj.uface_id)
   let [err, promiseRes] = await utils.capture( faceClient.addUser(base64, imageType, groupId, userId, options) )
   // 未知错误 - 网络错误
   if (err) {
-    res.send(err)
-    return
+    return res.resBadErr('未知错误' + err.message)
   }
 
   // 添加成功
