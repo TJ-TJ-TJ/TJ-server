@@ -19,29 +19,36 @@ const userInfoTable = collection('user_info')
  * @result { Boolean } true,可以预定;
 */
 async function isReserve({start_time, end_time, rid}) {
-  try {
-    start_time = Number(start_time)
-    end_time   = Number(end_time)
-    const where = {
-      "orders.rid": rid,
-      $and: [
-        { "orders.rid": rid },
-        { "orders.start_time": { $gt:  end_time} },  //end_time > order.start    order.start < end
-        { "orders.end_time": { $lt: start_time } }   // start_time < order.end 
-      ] 
-      
+try {
+  start_time = Number(start_time)
+  end_time   = Number(end_time)
+  const where = [
+    {
+      $unwind: '$orders'
+    },
+    {
+      $match: {
+        "orders.rid": rid,
+        "orders.start_time": { $lt:  end_time},
+        "orders.end_time": { $gt: start_time }
+      } // 找到这一条记录
+    },
+    {
+      $project:{
+        _id:1,
+      }
     }
-    const ops = { projection: {uid:1, _id:0, orders:1} }
-    const [err, resObj] = await utils.capture( userInfoTable.findOne(where, ops) )
-    if (resObj) {
-      // 有值. 说明不能预定
-      return false
-    } else {
-      // 可以预定
-      return true
-    }
-  } catch(err) {
+  ]
+  const [err, resArr] = await utils.capture( userInfoTable.aggregate(where).toArray() )
+  if (resArr.length >= 1) {
+    // 有值. 说明不能预定
     return false
+  } else {
+    // 可以预定
+    return true
+  }
+} catch(err) {
+  return false
 }}
 
 
