@@ -1,1 +1,0 @@
-console.log('test.js起到了')
