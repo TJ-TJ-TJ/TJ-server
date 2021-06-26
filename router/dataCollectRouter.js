@@ -60,11 +60,12 @@ r.get('/', async(req,res) => { try {
   }
 
   // OK
+  console.log(resArr)
   return res.resOk({
     result: {
       userCount: resArr[0],
-      orderCount: resArr[1].length, 
-      priceTotal: resArr[2][0].total
+      orderCount: resArr[1].length || 0, 
+      priceTotal: resArr[2].length===0 ? 0 : resArr[2][0].total
     }
   })
   
