@@ -60,7 +60,6 @@ r.get('/', async(req,res) => { try {
   }
 
   // OK
-  console.log(resArr)
   return res.resOk({
     result: {
       userCount: resArr[0],
@@ -71,7 +70,6 @@ r.get('/', async(req,res) => { try {
   
 } catch(e) {
   res.resParamsErr('代码错误' + e.message)
-  console.log(e);
 }})
 
 
