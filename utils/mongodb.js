@@ -1,6 +1,6 @@
 let options = {
-  host: '8.131.61.141',
-  port: 27017,
+  host: '',
+  port: 0,
   database: 'tj'
 }
 
